@@ -1051,6 +1051,7 @@ def chat(preloaded_msgs=None):
     msgs = list(preloaded_msgs) if preloaded_msgs else []
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     show_thinking = session.thinking_mode != "OFF"
+    _last_ctrl_c = 0.0  # timestamp of last Ctrl+C
 
     while True:
         try:
@@ -1060,6 +1061,10 @@ def chat(preloaded_msgs=None):
 
             inp = input(f"\n  {C('ACCENT')}[XYZ]{C_RESET} {C('DIM')}>{C_RESET} ").strip()
             if not inp: continue
+
+            # Ctrl+Q → exit immediately (sent as \x11 by most terminals)
+            if inp == '\x11':
+                break
 
             # ── Comandos ──
             if inp.lower() == '/exit': break
@@ -1183,8 +1188,15 @@ def chat(preloaded_msgs=None):
             save_session(msgs, session_id)
 
         except KeyboardInterrupt:
-            save_session(msgs, session_id)
-            print(f"\n  {C('DIM')}(Ctrl+C — use /exit to quit){C_RESET}")
+            import time
+            now = time.time()
+            if now - _last_ctrl_c < 2.0:
+                # Double Ctrl+C within 2 seconds → exit
+                save_session(msgs, session_id)
+                print(f"\n  {C('DIM')}Bye.{C_RESET}\n")
+                break
+            _last_ctrl_c = now
+            print(f"\n  {C('DIM')}Ctrl+C again or Ctrl+Q to quit.{C_RESET}")
         except Exception as e:
             print(f"\n  {C('ERR')}✗ Unexpected error: {e}{C_RESET}")
 
