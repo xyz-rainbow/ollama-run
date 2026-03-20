@@ -716,6 +716,26 @@ def fetch_ollama_models(query=""):
         {"name":"orca-mini:latest",     "description":"Orca Mini",                  "parameters":"3B/7B/13B",   "updated":"2023-11"},
     ]
 
+def fetch_model_tags(base_name):
+    """Fetch available tags for a model from ollama.com/library/{name}/tags"""
+    try:
+        url = f"https://ollama.com/library/{base_name}/tags"
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        if resp.status_code == 200:
+            found = re.findall(r'href="/library/' + re.escape(base_name) + r':([^"]+)"', resp.text)
+            seen = set()
+            tags = []
+            for t in found:
+                t = t.strip()
+                if t and t not in seen:
+                    seen.add(t)
+                    tags.append(f"{base_name}:{t}")
+            if tags:
+                return tags
+    except Exception:
+        pass
+    return [f"{base_name}:latest"]
+
 def show_model_detail(model_info):
     name   = model_info.get('name', str(model_info))
     desc   = model_info.get('description', '')
@@ -723,19 +743,11 @@ def show_model_detail(model_info):
     upd    = model_info.get('updated', 'N/A')
     base_name = name.split(':')[0]
 
-    # Construir lista de variantes seleccionables
-    if isinstance(params, str) and ('/' in params or '–' in params or '-' in params):
-        # Separar por / para variantes
-        raw_sizes = [s.strip() for s in params.replace('–', '/').split('/')]
-        tags = []
-        for s in raw_sizes:
-            # Limpiar: "1.5B" → "1.5b", "671B" → "671b"
-            tag = re.sub(r'\s+', '', s).lower()
-            if tag and not tag.startswith('latest'):
-                tags.append(f"{base_name}:{tag}")
-        tags.append(f"{base_name}:latest")
-    else:
-        tags = [name]
+    # Fetch real tags from ollama.com
+    tags = None
+    clear_screen(); print(get_banner())
+    print(f"\n  {C('DIM')}Loading variants for {base_name}…{C_RESET}", flush=True)
+    tags = fetch_model_tags(base_name)
 
     # Menú de variantes con info del modelo arriba
     idx = 0
