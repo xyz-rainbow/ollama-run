@@ -363,19 +363,33 @@ funcs = {
 }
 
 # ── HISTORY DE SESIONES ──────────────────────────────────────────────────────
+def _serialize_msg(m):
+    """Convert a message dict to a JSON-serializable form (ToolCall objects → dicts)."""
+    out = {k: v for k, v in m.items() if k != 'tool_calls'}
+    if 'tool_calls' in m and m['tool_calls']:
+        out['tool_calls'] = [
+            {'name': t.function.name, 'arguments': t.function.arguments}
+            if hasattr(t, 'function') else t
+            for t in m['tool_calls']
+        ]
+    return out
+
 def save_session(msgs, session_id=None):
     """Save conversation to disk."""
     if not msgs or all(m['role'] == 'system' for m in msgs): return None
     if not session_id:
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = os.path.join(SESSIONS_DIR, f"{session_id}.json")
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump({
-            'id': session_id,
-            'model': session.model,
-            'date': datetime.now().isoformat(),
-            'messages': msgs,
-        }, f, indent=2, ensure_ascii=False)
+    try:
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump({
+                'id': session_id,
+                'model': session.model,
+                'date': datetime.now().isoformat(),
+                'messages': [_serialize_msg(m) for m in msgs],
+            }, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass  # never crash the chat due to save errors
     return session_id
 
 def list_sessions():
