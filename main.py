@@ -828,6 +828,9 @@ def open_settings():
             f"Thinking: {session.thinking_mode}",
             f"Level:    {session.thinking_level}",
             f"Theme:    {session.theme}",
+            "Tools…",
+            "Skills…",
+            "History…",
             "Pull model…",
             "Search models…",
             "Chats…",
@@ -847,6 +850,12 @@ def open_settings():
         elif "Theme"   in opt:
             th = interactive_menu(list(THEMES.keys()), "THEME")
             if th: session.theme = th; session.save_config()
+        elif opt == "Tools…":
+            open_tools()
+        elif opt == "Skills…":
+            open_skills()
+        elif opt == "History…":
+            open_history()
         elif "Pull"    in opt:
             clear_screen(); print(get_banner())
             name = input(f"\n  {C('INFO')}Model name:{C_RESET} ").strip()
