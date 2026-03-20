@@ -988,20 +988,24 @@ def get_system_prompt():
     tools_str = ", ".join(active_tool_names) if active_tool_names else "none"
     base = f"You are a Rainbow Technology Assistant. Active tools: {tools_str}. Always respond in the same language the user writes in."
     thinking = {
-        "OFF":   "Respond directly without tags.",
-        "ON":    "Use <thought>...</thought> tags to reason BEFORE responding.",
-        "FORCE": "MANDATORY: Use <thought>...</thought> for extensive reasoning BEFORE using tools.",
+        "OFF":   "Respond directly without any tags.",
+        "ON":    "You MAY use <thought>...</thought> to reason before responding.",
+        "FORCE": (
+            "MANDATORY FORMAT for every reply:\n"
+            "<thought>\n[your reasoning here]\n</thought>\n[your response here]\n"
+            "You MUST always close </thought> before writing the response. Never put the response inside <thought>."
+        ),
     }[session.thinking_mode]
     skill_prompt = get_active_skill_prompt()
-    return f"{base}\n{thinking}\nAll reasoning goes inside <thought>.{skill_prompt}"
+    return f"{base}\n{thinking}{skill_prompt}"
 
 # ── STREAMING MEJORADO ─────────────────────────────────────────────────────────
-def stream_response(response_iter, show_thinking=True, prefix=""):
+def stream_response(response_iter, show_thinking=True):
     full_text = ""
     in_thought = False
     thought_shown = False
     response_shown = False
-    buf = prefix  # start buffer with forced prefix (e.g. "<thought>")
+    buf = ""
 
     def _ensure_response_header():
         nonlocal response_shown
@@ -1274,12 +1278,7 @@ def chat(preloaded_msgs=None):
             # Los modelos vision no suelen soportar tools simultáneamente
             use_tools = active_tools if (active_tools and not img_b64) else None
 
-            # FORCE thinking: inject partial assistant prefix to make model start inside <thought>
             force_prefix = None
-            if session.thinking_mode == "FORCE" and not img_b64:
-                force_prefix = {"role": "assistant", "content": "<thought>"}
-                msgs.append(force_prefix)
-
             try:
                 response = client.chat(
                     model=session.model,
@@ -1287,12 +1286,8 @@ def chat(preloaded_msgs=None):
                     tools=use_tools,
                     stream=True,
                 )
-                # When forcing, the streamed content is the continuation — prepend the tag
-                raw = stream_response(response, show_thinking=show_thinking,
-                                      prefix="<thought>" if force_prefix else "")
-                full_content = ("<thought>" + raw) if force_prefix else raw
+                full_content = stream_response(response, show_thinking=show_thinking)
             except Exception as e:
-                if force_prefix: msgs.pop()  # remove injected prefix
                 msgs.pop()  # quitar el mensaje del usuario que falló
                 print(f"\n  {C('ERR')}✗ Error communicating with model: {e}{C_RESET}")
                 if 'model' in str(e).lower() or 'not found' in str(e).lower():
@@ -1301,7 +1296,6 @@ def chat(preloaded_msgs=None):
                     print(f"  {C('WARN')}Cannot connect to Ollama. Is it running?{C_RESET}")
                 continue
 
-            if force_prefix: msgs.pop()  # remove injected prefix before storing real response
             ast_msg = {'role': 'assistant', 'content': full_content}
             msgs.append(ast_msg)
 
