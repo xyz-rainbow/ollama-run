@@ -53,7 +53,7 @@ else:
     import tty
 
 # Readline: Tab autocompletes commands starting with /
-COMMANDS = ['/exit', '/settings', '/tools', '/skills', '/search', '/history',
+COMMANDS = ['/exit', '/settings', '/model', '/tools', '/skills', '/search', '/history',
             '/pull ', '/img ']
 
 def _cmd_completer(text, state):
@@ -1292,7 +1292,7 @@ def print_status():
     vision_str = f"  {C('OK')}👁 vision{C_RESET}" if is_vision_model(session.model) else ""
     print(f"  {C('INFO')}{session.model}  thinking:{session.thinking_mode}  tools:{active_t}/{len(session.tools_enabled)}{skills_str}  theme:{session.theme}{vision_str}{C_RESET}")
     img_hint = f" /img <ruta|url>" if is_vision_model(session.model) else ""
-    print(f"  {C('DIM')}Commands: /exit /settings /tools /skills /search /pull <m> /history{img_hint}{C_RESET}\n")
+    print(f"  {C('DIM')}Commands: /exit /settings /model /tools /skills /search /pull <m> /history{img_hint}{C_RESET}\n")
 
 # ── CHAT ───────────────────────────────────────────────────────────────────────
 # ── VISION ────────────────────────────────────────────────────────────────────
@@ -1402,6 +1402,10 @@ def chat(preloaded_msgs=None):
                 clear_screen(); print(get_banner()); print_status(); continue
             if inp.lower() == '/skills':
                 open_skills()
+                clear_screen(); print(get_banner()); print_status(); continue
+            if inp.lower() == '/model':
+                new = select_model()
+                if new: session.model = new; session.save_config()
                 clear_screen(); print(get_banner()); print_status(); continue
             if inp.lower() == '/search':
                 search_models(); clear_screen(); print(get_banner()); print_status(); continue
