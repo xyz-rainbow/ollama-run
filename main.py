@@ -998,6 +998,18 @@ def stream_response(response_iter, show_thinking=True):
     response_shown = False
     buf = ""
 
+    def _ensure_response_header():
+        nonlocal response_shown
+        if not response_shown:
+            print(f"\n  {C('RESP')}── Response ────────────────────────────{C_RESET}\n  ", end="", flush=True)
+            response_shown = True
+
+    def _ensure_thinking_header():
+        nonlocal thought_shown
+        if not thought_shown and show_thinking:
+            print(f"\n  {C('THINK_L')}── Thinking ────────────────────────────{C_RESET}\n  {C('THINK')}", end="", flush=True)
+            thought_shown = True
+
     for chunk in response_iter:
         content = chunk['message'].content
         if not content: continue
@@ -1011,13 +1023,9 @@ def stream_response(response_iter, show_thinking=True):
                 if ts != -1:
                     before = buf[:ts]
                     if before:
-                        if not response_shown:
-                            print(f"\n  {C('RESP')}── Response ────────────────────────────{C_RESET}\n  ", end="", flush=True)
-                            response_shown = True
+                        _ensure_response_header()
                         print(f"{C('RESP')}{before}{C_RESET}", end="", flush=True)
-                    if not thought_shown and show_thinking:
-                        print(f"\n  {C('THINK_L')}── Thinking ────────────────────────────{C_RESET}\n  {C('THINK')}", end="", flush=True)
-                        thought_shown = True
+                    _ensure_thinking_header()
                     in_thought = True
                     buf = buf[ts + len("<thought>"):]
                 else:
@@ -1026,13 +1034,11 @@ def stream_response(response_iter, show_thinking=True):
                 te = buf.find("</thought>")
                 if te != -1:
                     if buf[:te]:
+                        _ensure_thinking_header()
                         print(f"{C('THINK')}{buf[:te]}{C_RESET}", end="", flush=True)
                     print(f"\n  {C('DIM')}───────────────────────────────────────{C_RESET}", end="", flush=True)
                     in_thought = False
                     buf = buf[te + len("</thought>"):]
-                    if not response_shown:
-                        print(f"\n  {C('RESP')}── Response ────────────────────────────{C_RESET}\n  ", end="", flush=True)
-                        response_shown = True
                 else:
                     break
 
@@ -1044,29 +1050,23 @@ def stream_response(response_iter, show_thinking=True):
 
         if to_print:
             if in_thought:
-                if not thought_shown and show_thinking:
-                    print(f"\n  {C('THINK_L')}── Thinking ────────────────────────────{C_RESET}\n  {C('THINK')}", end="", flush=True)
-                    thought_shown = True
+                _ensure_thinking_header()
                 print(f"{C('THINK')}{to_print}{C_RESET}", end="", flush=True)
             else:
-                if not response_shown and not thought_shown:
-                    if show_thinking and session.thinking_mode != "OFF":
-                        print(f"\n  {C('THINK_L')}── Thinking ────────────────────────────{C_RESET}\n  {C('THINK')}", end="", flush=True)
-                        thought_shown = True; in_thought = True
-                        print(f"{C('THINK')}{to_print}{C_RESET}", end="", flush=True)
-                    else:
-                        print(f"\n  {C('RESP')}── Response ────────────────────────────{C_RESET}\n  ", end="", flush=True)
-                        response_shown = True
-                        print(f"{C('RESP')}{to_print}{C_RESET}", end="", flush=True)
-                else:
-                    color = C('THINK') if in_thought else C('RESP')
-                    print(f"{color}{to_print}{C_RESET}", end="", flush=True)
+                _ensure_response_header()
+                print(f"{C('RESP')}{to_print}{C_RESET}", end="", flush=True)
 
     if buf:
-        color = C('THINK') if in_thought else C('RESP')
-        print(f"{color}{buf}{C_RESET}", end="", flush=True)
+        if in_thought:
+            _ensure_thinking_header()
+            print(f"{C('THINK')}{buf}{C_RESET}", end="", flush=True)
+        else:
+            if buf.strip():
+                _ensure_response_header()
+            print(f"{C('RESP')}{buf}{C_RESET}", end="", flush=True)
 
-    print(f"\n  {C('DIM')}───────────────────────────────────────{C_RESET}\n")
+    if response_shown or thought_shown:
+        print(f"\n  {C('DIM')}───────────────────────────────────────{C_RESET}\n")
     return full_text
 
 # ── STATUS BAR ────────────────────────────────────────────────────────────────
