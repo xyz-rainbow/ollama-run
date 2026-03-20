@@ -1035,8 +1035,18 @@ def get_system_prompt():
         ),
     }[session.thinking_mode]
 
+    communication = (
+        "\n\n## Communication style\n"
+        "- Lead with the answer or action, never with preamble ('Sure!', 'Great question', 'Of course').\n"
+        "- Use the user's register: casual if they're casual, technical if they're technical.\n"
+        "- For code: always use fenced code blocks with the correct language tag.\n"
+        "- For lists of steps: number them. For options/comparisons: use a table or bullet list.\n"
+        "- End responses cleanly — no filler sign-offs like 'I hope this helps!' or 'Let me know!'.\n"
+        "- If the user's request is ambiguous, make a reasonable assumption, state it briefly, then proceed."
+    )
+
     skill_prompt = get_active_skill_prompt()
-    return f"{base}\n\n{thinking}{skill_prompt}"
+    return f"{base}\n\n{thinking}{communication}{skill_prompt}"
 
 # ── STREAMING MEJORADO ─────────────────────────────────────────────────────────
 def stream_response(response_iter, show_thinking=True):
