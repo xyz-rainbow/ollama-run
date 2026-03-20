@@ -543,7 +543,9 @@ def toggle_list_menu(title, items, state_dict, default_state=False, extra_top=No
     while True:
         clear_screen()
         print(get_banner())
-        print(f"\n  {C('ACCENT')}{title}{C_RESET}  {C('INFO')}[SPACE] toggle  [Enter] seleccionar  [ESC] exit{C_RESET}\n")
+        show_del = any(isinstance(i, dict) for i in (all_options[n_extra:] if n_extra < len(all_options) else []))
+        del_hint = f"  {C('ERR')}[Del] delete{C_RESET}" if show_del else ""
+        print(f"\n  {C('ACCENT')}{title}{C_RESET}  {C('INFO')}[SPACE] toggle  [Enter] select  [ESC] exit{C_RESET}{del_hint}\n")
 
         for i, item in enumerate(all_options):
             is_extra = i < n_extra
@@ -570,6 +572,22 @@ def toggle_list_menu(title, items, state_dict, default_state=False, extra_top=No
                 name = all_options[idx]['name']
                 state_dict[name] = not state_dict.get(name, default_state)
                 session.save_config()
+        elif key == '\x1b[3~':  # Delete/Supr
+            if idx >= n_extra and isinstance(all_options[idx], dict):
+                name = all_options[idx]['name']
+                # Remove from catalog file
+                if os.path.exists(SKILLS_CATALOG):
+                    try:
+                        catalog = json.loads(open(SKILLS_CATALOG).read())
+                        catalog = [s for s in catalog if s.get('name') != name]
+                        with open(SKILLS_CATALOG, 'w') as f: json.dump(catalog, f, indent=2)
+                    except Exception:
+                        pass
+                state_dict.pop(name, None)
+                session.save_config()
+                all_options = (extra_top or []) + load_skills_catalog()
+                n_extra = len(extra_top) if extra_top else 0
+                idx = min(idx, len(all_options) - 1)
         elif key in ['\r','\n','\r\n']:
             if idx < n_extra:
                 return all_options[idx]  # retorna la opción especial seleccionada
