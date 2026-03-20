@@ -12,7 +12,10 @@ import base64
 import mimetypes
 from datetime import datetime
 from ollama import Client
-from duckduckgo_search import DDGS
+try:
+    from ddgs import DDGS
+except ImportError:
+    from duckduckgo_search import DDGS
 
 # --- RAINBOW TECHNOLOGY SIGNATURES ---
 # #xyz-rainbow #xyz-rainbowtechnology #rainbowtechnology.xyz
@@ -203,7 +206,8 @@ def load_skills_catalog():
     catalog = list(BUILTIN_SKILLS)
     if os.path.exists(SKILLS_CATALOG):
         try:
-            extra = json.loads(open(SKILLS_CATALOG).read())
+            with open(SKILLS_CATALOG) as _f:
+                extra = json.load(_f)
             catalog += [s for s in extra if s.get('name') not in [x['name'] for x in catalog]]
         except Exception: pass
     return catalog
@@ -641,7 +645,8 @@ def toggle_list_menu(title, items, state_dict, default_state=False, extra_top=No
                 # Remove from catalog file
                 if os.path.exists(SKILLS_CATALOG):
                     try:
-                        catalog = json.loads(open(SKILLS_CATALOG).read())
+                        with open(SKILLS_CATALOG) as _f:
+                            catalog = json.load(_f)
                         catalog = [s for s in catalog if s.get('name') != name]
                         with open(SKILLS_CATALOG, 'w') as f: json.dump(catalog, f, indent=2)
                     except Exception:
@@ -689,7 +694,8 @@ def open_skills():
                     # Guardar en catálogo extendido
                     existing = []
                     if os.path.exists(SKILLS_CATALOG):
-                        try: existing = json.loads(open(SKILLS_CATALOG).read())
+                        try:
+                            with open(SKILLS_CATALOG) as _f: existing = json.load(_f)
                         except: pass
                     names = {s['name'] for s in existing}
                     added = [s for s in found if s['name'] not in names]
