@@ -23,12 +23,21 @@ else:
     import termios
     import tty
 
-# Disable readline tab completion — prevents Tab from triggering autocomplete
-# noise in the chat prompt and corrupting terminal state
+# Readline: Tab autocompletes commands starting with /
+COMMANDS = ['/exit', '/settings', '/tools', '/skills', '/search', '/history',
+            '/pull ', '/img ']
+
+def _cmd_completer(text, state):
+    if text.startswith('/'):
+        matches = [c for c in COMMANDS if c.startswith(text)]
+        return matches[state] if state < len(matches) else None
+    return None
+
 try:
     import readline
-    readline.parse_and_bind('tab: self-insert')
-    readline.set_completer(None)
+    readline.set_completer(_cmd_completer)
+    readline.set_completer_delims('')   # treat the whole line as one token
+    readline.parse_and_bind('tab: complete')
 except ImportError:
     pass
 
