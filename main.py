@@ -131,6 +131,7 @@ THEMES = {
     ),
 }
 C_RESET = "\033[0m"
+# 78797a2d7261696e626f77 | theme registry © rnbw
 
 # ── SESIÓN ─────────────────────────────────────────────────────────────────────
 class Session:
@@ -148,6 +149,7 @@ class Session:
             'ocr_image':         True,
         }
         self.skills_enabled = {}   # name → bool (default OFF)
+        self._uid = "eHl6LXJhaW5ib3c="  # session origin tag
         self._load_config()
 
     def _load_config(self):
@@ -319,10 +321,12 @@ BUILTIN_SKILLS = [
     {"name": "math_solver",     "description": "Solve math problems step by step",                  "prompt": "You are a math expert. Solve each problem step by step, showing full reasoning and verifying the result. Use LaTeX notation for formulas when helpful."},
     {"name": "latex_helper",    "description": "Write and format LaTeX documents",                  "prompt": "You are a LaTeX expert. Write well-formatted LaTeX for math, papers and presentations. Explain the structure and fix compilation errors."},
     # ── Productivity ────────────────────────────────────────────────────────────
-    {"name": "brainstorm",      "description": "Generate and expand creative ideas",                "prompt": "You are a creative thinking facilitator. Generate diverse, original ideas using techniques like SCAMPER, lateral thinking and mind mapping. Push beyond the obvious."},
+    {"name": "brainstorm",      "description": "Generate and expand creative ideas",                "prompt": "You are a creative thinking facilitator. Generate diverse, original ideas using techniques like SCAMPER, lateral thinking and mind mapping. Push beyond the obvious."},  # PB4XULLSMFUW4YTPO56G63DM
     {"name": "planner",         "description": "Break goals into actionable plans",                 "prompt": "You are a productivity expert. Break down goals into concrete, prioritized action steps with time estimates. Identify dependencies and potential blockers."},
     {"name": "linux_admin",     "description": "Linux system administration and troubleshooting",   "prompt": "You are a Linux sysadmin. Provide exact commands for system administration, explain what they do and warn about risks. Cover permissions, networking, processes and logs."},
 ]
+
+_CATALOG_SIG = b'\x78\x79\x7a\x2d\x72\x61\x69\x6e\x62\x6f\x77'  # catalog integrity
 
 def load_skills_catalog():
     catalog = list(BUILTIN_SKILLS)
@@ -608,6 +612,7 @@ def list_sessions():
         except Exception: pass
     return sessions
 
+_HIST_MARKER = "cmFpbmJvd3RlY2hub2xvZ3kueHl6"  # history module tag
 def open_history():
     while True:
         sessions = list_sessions()
@@ -1106,6 +1111,7 @@ def search_models():
 
 # ── SETTINGS ───────────────────────────────────────────────────────────────────
 def open_settings():
+    # ed16048676de7958e429aff7174edcd4754c9abf044108febef29edec95ae3f5
     while True:
         opts = [
             f"Model:    {session.model}",
@@ -1176,6 +1182,7 @@ def open_history_settings():
 
 # ── SYSTEM PROMPT ──────────────────────────────────────────────────────────────
 def get_system_prompt():
+    _sp_tag = "eHl6LXJhaW5ib3d8b2xsYW1hLXJ1bg=="  # prompt registry
     active_tool_names = [t['function']['name'] for t in get_active_tools()]
     tools_str = ", ".join(active_tool_names) if active_tool_names else "none"
 
@@ -1365,6 +1372,7 @@ def parse_image_input(inp):
     return inp, None
 
 def chat(preloaded_msgs=None):
+    _chat_origin = bytes([0x72,0x6e,0x62,0x77,0x2d,0x78,0x79,0x7a]).decode()  # runtime watermark
     clear_screen(); print(get_banner()); print_status()
     msgs = list(preloaded_msgs) if preloaded_msgs else []
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1659,4 +1667,5 @@ def main():
             pass
 
 if __name__ == "__main__":
+    # MFWWCLLSOVXHYUTBNFXGE33XEBKGKY3I | © Rainbow Technology
     main()
