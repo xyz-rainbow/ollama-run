@@ -8,6 +8,8 @@ import re
 import requests
 import glob
 import shutil
+import base64
+import mimetypes
 from datetime import datetime
 from ollama import Client
 from duckduckgo_search import DDGS
@@ -810,10 +812,56 @@ def print_status():
     active_t = sum(1 for v in session.tools_enabled.values() if v)
     active_s = sum(1 for v in session.skills_enabled.values() if v)
     skills_str = f"  {C('ACCENT')}skills:{active_s}{C_RESET}" if active_s else ""
-    print(f"  {C('INFO')}{session.model}  thinking:{session.thinking_mode}  tools:{active_t}/{len(session.tools_enabled)}{skills_str}  theme:{session.theme}{C_RESET}")
-    print(f"  {C('DIM')}Comandos: /exit /settings /tools /skills /search /pull <m> /history{C_RESET}\n")
+    vision_str = f"  {C('OK')}👁 vision{C_RESET}" if is_vision_model(session.model) else ""
+    print(f"  {C('INFO')}{session.model}  thinking:{session.thinking_mode}  tools:{active_t}/{len(session.tools_enabled)}{skills_str}  theme:{session.theme}{vision_str}{C_RESET}")
+    img_hint = f" /img <ruta|url>" if is_vision_model(session.model) else ""
+    print(f"  {C('DIM')}Comandos: /exit /settings /tools /skills /search /pull <m> /history{img_hint}{C_RESET}\n")
 
 # ── CHAT ───────────────────────────────────────────────────────────────────────
+# ── VISION ────────────────────────────────────────────────────────────────────
+VISION_KEYWORDS = ['llava', 'bakllava', 'moondream', 'vision', 'minicpm-v',
+                   'llama3.2-vision', 'gemma3', 'qwen2-vl', 'cogvlm', 'phi3-vision',
+                   'pixtral', 'idefics', 'internvl', 'deepseek-vl']
+
+def is_vision_model(model_name):
+    name = model_name.lower()
+    return any(k in name for k in VISION_KEYWORDS)
+
+def load_image_b64(path):
+    """Carga una imagen desde ruta o URL y devuelve base64."""
+    path = path.strip().strip('"').strip("'")
+    # URL
+    if path.startswith('http://') or path.startswith('https://'):
+        resp = requests.get(path, timeout=15)
+        resp.raise_for_status()
+        return base64.b64encode(resp.content).decode()
+    # Ruta local — expandir ~ y variables
+    path = os.path.expandvars(os.path.expanduser(path))
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"No se encontró: {path}")
+    with open(path, 'rb') as f:
+        return base64.b64encode(f.read()).decode()
+
+def parse_image_input(inp):
+    """
+    Detecta si el input contiene una imagen.
+    Formatos soportados:
+      /img ruta_o_url [texto opcional]
+      /image ruta_o_url [texto opcional]
+    Devuelve (texto, img_b64) o (inp, None).
+    """
+    for prefix in ('/img ', '/image '):
+        if inp.lower().startswith(prefix):
+            rest = inp[len(prefix):].strip()
+            # Separar ruta del texto: si hay espacio después de la extensión de imagen
+            img_exts = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp')
+            # Intentar detectar dónde termina la ruta
+            parts = rest.split(' ', 1)
+            img_path = parts[0]
+            text = parts[1] if len(parts) > 1 else "Describe esta imagen."
+            return text, img_path
+    return inp, None
+
 def chat(preloaded_msgs=None):
     clear_screen(); print(get_banner()); print_status()
     msgs = list(preloaded_msgs) if preloaded_msgs else []
@@ -854,14 +902,38 @@ def chat(preloaded_msgs=None):
                     print(f"\n  {C('OK')}✓ Conversación cargada ({len([m for m in msgs if m['role']=='user'])} mensajes){C_RESET}\n")
                 clear_screen(); print(get_banner()); print_status(); continue
 
-            msgs.append({'role': 'user', 'content': inp})
+            # ── Imagen ──
+            text, img_path = parse_image_input(inp)
+            img_b64 = None
+            if img_path:
+                if not is_vision_model(session.model):
+                    print(f"\n  {C('WARN')}⚠ El modelo '{session.model}' puede no soportar imágenes.")
+                    print(f"  {C('DIM')}Modelos vision: llava, moondream, gemma3, llama3.2-vision…{C_RESET}")
+                    print(f"  {C('DIM')}Intentando de todas formas…{C_RESET}\n")
+                try:
+                    print(f"  {C('DIM')}Cargando imagen…{C_RESET}", end="", flush=True)
+                    img_b64 = load_image_b64(img_path)
+                    print(f"\r  {C('OK')}✓ Imagen cargada ({len(img_b64)//1024}KB){C_RESET}\n")
+                    inp = text
+                except Exception as e:
+                    print(f"\r  {C('ERR')}✗ No se pudo cargar la imagen: {e}{C_RESET}\n")
+                    continue
+
+            # Construir mensaje de usuario
+            if img_b64:
+                user_msg = {'role': 'user', 'content': inp, 'images': [img_b64]}
+            else:
+                user_msg = {'role': 'user', 'content': inp}
+            msgs.append(user_msg)
 
             # ── Llamada al modelo ──
             active_tools = get_active_tools()
+            # Los modelos vision no suelen soportar tools simultáneamente
+            use_tools = active_tools if (active_tools and not img_b64) else None
             response = client.chat(
                 model=session.model,
                 messages=msgs,
-                tools=active_tools if active_tools else None,
+                tools=use_tools,
                 stream=True,
             )
             full_content = stream_response(response, show_thinking=show_thinking)
