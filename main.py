@@ -479,13 +479,17 @@ def get_key():
             tty.setraw(fd)
             ch = sys.stdin.read(1)
             if ch == '\x1b':
-                # Esperar brevemente más chars — si no llegan es ESC puro
-                ready, _, _ = select.select([sys.stdin], [], [], 0.08)
+                # Leer el segundo byte con timeout generoso
+                ready, _, _ = select.select([sys.stdin], [], [], 0.15)
                 if ready:
-                    ch += sys.stdin.read(1)
-                    ready2, _, _ = select.select([sys.stdin], [], [], 0.04)
-                    if ready2:
-                        ch += sys.stdin.read(1)
+                    ch2 = sys.stdin.read(1)
+                    ch += ch2
+                    # Si es secuencia CSI (\x1b[), el tercer byte es obligatorio — esperar sin timeout
+                    if ch2 == '[':
+                        ready3, _, _ = select.select([sys.stdin], [], [], 0.15)
+                        if ready3:
+                            ch += sys.stdin.read(1)
+                # Si no llegó nada tras \x1b → ESC puro
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
         return ch
