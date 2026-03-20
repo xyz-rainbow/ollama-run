@@ -421,11 +421,6 @@ def open_history():
             input(f"  {C('DIM')}[Enter]{C_RESET}")
             return None
 
-        options = [f"{s['date']}  {C('INFO')}{s['model']}{C_RESET}  {C('DIM')}{s['preview']}{C_RESET}" for s in sessions]
-        options += ["── Delete all ──", "Back"]
-
-        plain_options = [f"{s['date']}  {s['model']}  {s['preview']}" for s in sessions] + ["── Delete all ──", "Back"]
-
         idx = 0
         while True:
             clear_screen()
