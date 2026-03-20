@@ -155,17 +155,105 @@ session = Session()
 def C(key): return session.c.get(key, "")
 
 # ── TOOLS DEFINITIONS ──────────────────────────────────────────────────────────
-ALL_TOOLS = [
-    {'type':'function','function':{'name':'web_search','description':'Búsqueda web.','parameters':{'type':'object','properties':{'query':{'type':'string'}},'required':['query']}}},
-    {'type':'function','function':{'name':'execute_shell','description':'Comandos Bash.','parameters':{'type':'object','properties':{'command':{'type':'string'}},'required':['command']}}},
-    {'type':'function','function':{'name':'logseq_io','description':'Logseq.','parameters':{'type':'object','properties':{'action':{'type':'string','enum':['read','write','append']},'page_name':{'type':'string'},'content':{'type':'string'}},'required':['action','page_name']}}},
-    {'type':'function','function':{'name':'get_system_status','description':'Estado del sistema.','parameters':{'type':'object','properties':{}}}},
-    {'type':'function','function':{'name':'describe_image','description':'Analiza y describe el contenido visual de una imagen usando un modelo vision. Úsala cuando el usuario mande una imagen o pregunte qué hay en ella.','parameters':{'type':'object','properties':{'image_path':{'type':'string','description':'Ruta local o URL de la imagen'},'question':{'type':'string','description':'Pregunta específica sobre la imagen'}},'required':['image_path']}}},
-    {'type':'function','function':{'name':'ocr_image','description':'Extrae texto de una imagen mediante OCR (reconocimiento óptico de caracteres). Ideal para capturas de pantalla, documentos escaneados, fotos de texto.','parameters':{'type':'object','properties':{'image_path':{'type':'string','description':'Ruta local o URL de la imagen'},'lang':{'type':'string','description':'Idioma para OCR, ej: spa, eng, fra (default: spa+eng)'}},'required':['image_path']}}},
+DEFAULT_TOOLS = [
+    {'type':'function','function':{'name':'web_search','description':'Web search via DuckDuckGo.','parameters':{'type':'object','properties':{'query':{'type':'string'}},'required':['query']}}},
+    {'type':'function','function':{'name':'execute_shell','description':'Execute Bash commands.','parameters':{'type':'object','properties':{'command':{'type':'string'}},'required':['command']}}},
+    {'type':'function','function':{'name':'logseq_io','description':'Read/write Logseq pages.','parameters':{'type':'object','properties':{'action':{'type':'string','enum':['read','write','append']},'page_name':{'type':'string'},'content':{'type':'string'}},'required':['action','page_name']}}},
+    {'type':'function','function':{'name':'get_system_status','description':'CPU, RAM, disk and process info.','parameters':{'type':'object','properties':{}}}},
+    {'type':'function','function':{'name':'describe_image','description':'Describe image content using a vision model.','parameters':{'type':'object','properties':{'image_path':{'type':'string'},'question':{'type':'string'}},'required':['image_path']}}},
+    {'type':'function','function':{'name':'ocr_image','description':'Extract text from image via OCR.','parameters':{'type':'object','properties':{'image_path':{'type':'string'},'lang':{'type':'string'}},'required':['image_path']}}},
 ]
+DEFAULT_TOOL_NAMES = {t['function']['name'] for t in DEFAULT_TOOLS}
+CUSTOM_TOOLS_FILE  = os.path.join(XYZ_DIR, 'custom_tools.json')
+
+def load_custom_tools():
+    if os.path.exists(CUSTOM_TOOLS_FILE):
+        try:
+            with open(CUSTOM_TOOLS_FILE) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return []
+
+def save_custom_tools(tools):
+    with open(CUSTOM_TOOLS_FILE, 'w') as f:
+        json.dump(tools, f, indent=2)
+
+def get_all_tools():
+    return DEFAULT_TOOLS + load_custom_tools()
+
+ALL_TOOLS = DEFAULT_TOOLS  # backward compat alias — rebuilt each call via get_all_tools()
 
 def get_active_tools():
-    return [t for t in ALL_TOOLS if session.tools_enabled.get(t['function']['name'], True)]
+    return [t for t in get_all_tools() if session.tools_enabled.get(t['function']['name'], True)]
+
+BUILTIN_TOOL_CATALOG = [
+    {"name": "http_fetch",      "description": "Fetch a URL and return its content",
+     "parameters": {"url": "string", "method": "string(GET/POST)"}},
+    {"name": "read_file",       "description": "Read a local file and return its content",
+     "parameters": {"path": "string"}},
+    {"name": "write_file",      "description": "Write content to a local file",
+     "parameters": {"path": "string", "content": "string"}},
+    {"name": "list_directory",  "description": "List files and folders in a directory",
+     "parameters": {"path": "string"}},
+    {"name": "git_status",      "description": "Run git status in a repo directory",
+     "parameters": {"path": "string"}},
+    {"name": "git_log",         "description": "Show recent git commits",
+     "parameters": {"path": "string", "n": "int"}},
+    {"name": "run_python",      "description": "Execute a Python snippet and return output",
+     "parameters": {"code": "string"}},
+    {"name": "get_weather",     "description": "Get current weather for a location",
+     "parameters": {"location": "string"}},
+    {"name": "calculator",      "description": "Evaluate a math expression",
+     "parameters": {"expression": "string"}},
+    {"name": "translate_text",  "description": "Translate text between languages",
+     "parameters": {"text": "string", "target_lang": "string"}},
+    {"name": "summarize_url",   "description": "Fetch and summarize a webpage",
+     "parameters": {"url": "string"}},
+    {"name": "diff_files",      "description": "Show diff between two files",
+     "parameters": {"file_a": "string", "file_b": "string"}},
+    {"name": "json_query",      "description": "Query JSON data with a JMESPath expression",
+     "parameters": {"data": "string", "query": "string"}},
+    {"name": "send_notification","description": "Send a desktop notification",
+     "parameters": {"title": "string", "message": "string"}},
+    {"name": "clipboard_read",  "description": "Read current clipboard content",
+     "parameters": {}},
+    {"name": "clipboard_write", "description": "Write text to clipboard",
+     "parameters": {"text": "string"}},
+    {"name": "screenshot",      "description": "Take a screenshot and return image path",
+     "parameters": {"output": "string"}},
+    {"name": "cron_add",        "description": "Add a cron job",
+     "parameters": {"schedule": "string", "command": "string"}},
+    {"name": "docker_ps",       "description": "List running Docker containers",
+     "parameters": {}},
+    {"name": "sql_query",       "description": "Run a SQL query on a local SQLite database",
+     "parameters": {"db_path": "string", "query": "string"}},
+]
+
+def search_tools_online(query):
+    q = query.lower()
+    matches = [t for t in BUILTIN_TOOL_CATALOG
+               if q in t['name'].lower() or q in t['description'].lower()]
+    if matches:
+        return matches
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.text(f"AI tool function {query} JSON schema", max_results=3))
+        tools = []
+        for r in results:
+            name = re.sub(r'[^a-z0-9_]', '_', query.lower()[:30]).strip('_')
+            tools.append({
+                "name": name,
+                "description": r['body'][:120],
+                "parameters": {},
+            })
+        seen = set(); unique = []
+        for t in tools:
+            if t['name'] not in seen:
+                seen.add(t['name']); unique.append(t)
+        return unique
+    except Exception:
+        return []
 
 # ── SKILLS CATALOG ─────────────────────────────────────────────────────────────
 BUILTIN_SKILLS = [
@@ -594,22 +682,31 @@ def interactive_menu(options, title, right_action=None, right_hint=None):
         elif key == '\x1b': return None
 
 # ── TOGGLE LIST (para /tools y /skills) ───────────────────────────────────────
-def toggle_list_menu(title, items, state_dict, default_state=False, extra_top=None):
+def toggle_list_menu(title, items, state_dict, default_state=False, extra_top=None,
+                     deletable_key=None, on_delete=None):
     """
     Menú de lista con toggle por ESPACIO.
     items: list of {"name": str, "description": str}
     state_dict: dict mutable name→bool
-    extra_top: lista de opciones especiales al inicio (ej: "[Search skills]")
+    extra_top: lista de opciones especiales al inicio
+    deletable_key: item field that marks an item as deletable (bool)
+    on_delete: callback(name) called when Del is pressed on a deletable item
     """
     idx = 0
     all_options = (extra_top or []) + items
     n_extra = len(extra_top) if extra_top else 0
 
+    def _rebuild():
+        return (extra_top or []) + items  # caller must reassign items before calling
+
     while True:
         clear_screen()
         print(get_banner())
-        show_del = any(isinstance(i, dict) for i in (all_options[n_extra:] if n_extra < len(all_options) else []))
-        del_hint = f"  {C('ERR')}[Del] delete{C_RESET}" if show_del else ""
+        can_del = any(
+            isinstance(item, dict) and (deletable_key is None or item.get(deletable_key, True))
+            for item in all_options[n_extra:]
+        )
+        del_hint = f"  {C('ERR')}[Del] delete{C_RESET}" if can_del else ""
         print(f"\n  {C('ACCENT')}{title}{C_RESET}  {C('INFO')}[SPACE] toggle  [Enter] select  [ESC] exit{C_RESET}{del_hint}\n")
 
         offset, page = _viewport(idx, len(all_options))
@@ -630,7 +727,9 @@ def toggle_list_menu(title, items, state_dict, default_state=False, extra_top=No
                 enabled = state_dict.get(name, default_state)
                 status_color = C('OK') if enabled else C('ERR')
                 status_text  = " ON " if enabled else "OFF"
-                print(f"{marker} [{status_color}{status_text}{C_RESET}]  {C('RESP')}{name}{C_RESET}  {C('DIM')}{desc}{C_RESET}")
+                deletable = deletable_key is None or item.get(deletable_key, False)
+                lock_hint  = f" {C('DIM')}[default]{C_RESET}" if not deletable else ""
+                print(f"{marker} [{status_color}{status_text}{C_RESET}]  {C('RESP')}{name}{C_RESET}  {C('DIM')}{desc}{C_RESET}{lock_hint}")
         below = len(all_options) - offset - page
         if below > 0:
             print(f"  {C('DIM')}  ↓ {below} more below{C_RESET}")
@@ -646,21 +745,28 @@ def toggle_list_menu(title, items, state_dict, default_state=False, extra_top=No
                 session.save_config()
         elif key == '\x1b[3~':  # Delete/Supr
             if idx >= n_extra and isinstance(all_options[idx], dict):
-                name = all_options[idx]['name']
-                # Remove from catalog file
-                if os.path.exists(SKILLS_CATALOG):
-                    try:
-                        with open(SKILLS_CATALOG) as _f:
-                            catalog = json.load(_f)
-                        catalog = [s for s in catalog if s.get('name') != name]
-                        with open(SKILLS_CATALOG, 'w') as f: json.dump(catalog, f, indent=2)
-                    except Exception:
-                        pass
-                state_dict.pop(name, None)
-                session.save_config()
-                all_options = (extra_top or []) + load_skills_catalog()
-                n_extra = len(extra_top) if extra_top else 0
-                idx = min(idx, len(all_options) - 1)
+                item = all_options[idx]
+                name = item['name']
+                deletable = deletable_key is None or item.get(deletable_key, False)
+                if deletable:
+                    if on_delete:
+                        on_delete(name)
+                    else:
+                        # Default: skills catalog removal
+                        if os.path.exists(SKILLS_CATALOG):
+                            try:
+                                with open(SKILLS_CATALOG) as _f:
+                                    catalog = json.load(_f)
+                                catalog = [s for s in catalog if s.get('name') != name]
+                                with open(SKILLS_CATALOG, 'w') as f: json.dump(catalog, f, indent=2)
+                            except Exception:
+                                pass
+                        state_dict.pop(name, None)
+                        session.save_config()
+                    all_options = (extra_top or []) + [
+                        x for x in all_options[n_extra:] if x.get('name') != name
+                    ]
+                    idx = min(idx, len(all_options) - 1)
         elif key in ['\r','\n','\r\n']:
             if idx < n_extra:
                 return all_options[idx]  # retorna la opción especial seleccionada
@@ -671,8 +777,59 @@ def toggle_list_menu(title, items, state_dict, default_state=False, extra_top=No
 
 # ── /TOOLS ────────────────────────────────────────────────────────────────────
 def open_tools():
-    items = [{'name': t['function']['name'], 'description': t['function']['description']} for t in ALL_TOOLS]
-    toggle_list_menu("TOOLS", items, session.tools_enabled, default_state=True)
+    while True:
+        all_t = get_all_tools()
+        items = [{'name': t['function']['name'], 'description': t['function']['description'],
+                  '_deletable': t['function']['name'] not in DEFAULT_TOOL_NAMES}
+                 for t in all_t]
+        result = toggle_list_menu(
+            "TOOLS",
+            items,
+            session.tools_enabled,
+            default_state=True,
+            extra_top=["[Search tools]"],
+            deletable_key='_deletable',
+            on_delete=_delete_custom_tool,
+        )
+        if result == "[Search tools]":
+            clear_screen()
+            print(get_banner())
+            print(f"\n  {C('ACCENT')}SEARCH TOOLS{C_RESET}\n")
+            q = input(f"  {C('INFO')}Search:{C_RESET} ").strip()
+            if q:
+                clear_screen()
+                print(get_banner())
+                print(f"\n  {C('DIM')}Searching tools for '{q}'…{C_RESET}\n")
+                found = search_tools_online(q)
+                if found:
+                    existing = load_custom_tools()
+                    names = {t['function']['name'] for t in get_all_tools()}
+                    added = 0
+                    for ft in found:
+                        tname = ft['name']
+                        if tname not in names:
+                            existing.append({'type': 'function', 'function': {
+                                'name': tname,
+                                'description': ft.get('description', ''),
+                                'parameters': {'type': 'object', 'properties': {
+                                    k: {'type': 'string'} for k in ft.get('parameters', {})
+                                }, 'required': []},
+                            }})
+                            added += 1
+                    save_custom_tools(existing)
+                    print(f"  {C('OK')}✓ {added} tools added.{C_RESET}\n")
+                else:
+                    print(f"  {C('WARN')}No tools found.{C_RESET}\n")
+                input(f"  {C('DIM')}[Enter]{C_RESET}")
+        else:
+            break
+
+def _delete_custom_tool(name):
+    custom = load_custom_tools()
+    custom = [t for t in custom if t['function']['name'] != name]
+    save_custom_tools(custom)
+    session.tools_enabled.pop(name, None)
+    session.save_config()
 
 # ── /SKILLS ───────────────────────────────────────────────────────────────────
 def open_skills():
