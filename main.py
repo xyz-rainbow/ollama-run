@@ -79,10 +79,12 @@ class Session:
         self.thinking_level= "Medium"
         self.theme         = "default"
         self.tools_enabled = {
-            'web_search':      True,
-            'execute_shell':   True,
-            'logseq_io':       True,
+            'web_search':        True,
+            'execute_shell':     True,
+            'logseq_io':         True,
             'get_system_status': True,
+            'describe_image':    True,
+            'ocr_image':         True,
         }
         self.skills_enabled = {}   # name → bool (default OFF)
         self._load_config()
@@ -212,16 +214,31 @@ def web_search(query):
         print_tool_result("web_search", f"ERROR: {e}")
         return str(e)
 
+SHELL_DANGEROUS = [r'rm\s+-rf', r'\bdd\b', r'mkfs', r'chmod\s+777', r'>\s*/dev/',
+                   r'curl.+\|\s*sh', r'wget.+\|\s*sh', r':\(\)\{', r'fork\s*bomb']
+
 def execute_shell(command):
     print_tool_msg(f"Executing: {command}…")
+    # Confirmación para comandos potencialmente destructivos
+    if any(re.search(p, command, re.IGNORECASE) for p in SHELL_DANGEROUS):
+        print(f"\n  {C('ERR')}⚠ DANGEROUS COMMAND DETECTED:{C_RESET} {command}")
+        try:
+            confirm = input(f"  {C('WARN')}Execute anyway? [y/N]{C_RESET} ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            confirm = 'n'
+        if confirm not in ('y','yes'):
+            return "Execution cancelled by user."
     try:
         res = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=20)
         out = (res.stdout + res.stderr).strip()
         print_tool_result("shell", out[:200] or "(no output)")
         return f"OUT: {res.stdout}\nERR: {res.stderr}"
+    except subprocess.TimeoutExpired:
+        print_tool_result("shell", "ERROR: timeout (20s)")
+        return "Error: command exceeded the 20 second time limit."
     except Exception as e:
         print_tool_result("shell", f"ERROR: {e}")
-        return str(e)
+        return f"Error executing command: {e}"
 
 def logseq_io(action, page_name, content=None):
     if not page_name.endswith(".md"): page_name += ".md"
@@ -237,15 +254,15 @@ def logseq_io(action, page_name, content=None):
             with open(path, 'w', encoding='utf-8') as f: f.write(content or "")
             print_tool_result("logseq", "written OK"); return "OK"
         elif action == 'append':
-            with open(path, 'a', encoding='utf-8') as f: f.write(f"\n- {content}" or "")
+            with open(path, 'a', encoding='utf-8') as f: f.write(f"\n- {content}" if content else "")
             print_tool_result("logseq", "appended OK"); return "OK"
     except Exception as e:
         print_tool_result("logseq", f"ERROR: {e}"); return str(e)
 
 def describe_image(image_path, question=None):
     """Usa el primer modelo vision disponible para describir una imagen."""
-    print_tool_msg(f"Analizando imagen: {image_path}…")
-    # Buscar modelo vision disponible localmente
+    print_tool_msg(f"Analyzing image: {image_path}…")
+    # Find available local vision model
     vision_model = None
     try:
         local_models = [m.model for m in client.list().models]
@@ -257,23 +274,23 @@ def describe_image(image_path, question=None):
         pass
 
     if not vision_model:
-        result = "No hay ningún modelo vision instalado. Instala llava, moondream o similar con /pull llava"
+        result = "No vision model installed. Install llava, moondream or similar with /pull llava"
         print_tool_result("describe_image", result)
         return result
 
     try:
         img_b64 = load_image_b64(image_path)
-        prompt = question or "Describe detalladamente el contenido de esta imagen."
+        prompt = question or "Describe this image in detail."
         resp = client.chat(
             model=vision_model,
             messages=[{'role': 'user', 'content': prompt, 'images': [img_b64]}],
             stream=False,
         )
-        description = resp['message']['content']
+        description = resp.message.content if hasattr(resp, 'message') else resp['message']['content']
         print_tool_result("describe_image", f"[{vision_model}] {description[:120]}")
         return description
     except Exception as e:
-        result = f"Error al analizar imagen: {e}"
+        result = f"Error analyzing image: {e}"
         print_tool_result("describe_image", result)
         return result
 
@@ -302,34 +319,34 @@ def ocr_image(image_path, lang=None):
             from PIL import Image as PILImage
             img = PILImage.open(local_path)
             text = pytesseract.image_to_string(img, lang=lang)
-            print_tool_result("ocr_image", text[:120] or "(sin texto)")
-            return text.strip() or "(No se detectó texto)"
+            print_tool_result("ocr_image", text[:120] or "(no text found)")
+            return text.strip() or "(No text detected)"
         except ImportError:
             pass
 
         # Fallback: tesseract CLI
         if shutil.which('tesseract'):
             import tempfile
-            out_base = tempfile.mktemp()
-            subprocess.run(
-                ['tesseract', local_path, out_base, '-l', lang],
-                capture_output=True, timeout=30
-            )
-            out_file = out_base + '.txt'
-            if os.path.exists(out_file):
-                with open(out_file) as f: text = f.read()
-                os.remove(out_file)
-                print_tool_result("ocr_image", text[:120] or "(sin texto)")
-                return text.strip() or "(No se detectó texto)"
+            with tempfile.TemporaryDirectory() as tmpdir:
+                out_base = os.path.join(tmpdir, 'ocr_out')
+                subprocess.run(
+                    ['tesseract', local_path, out_base, '-l', lang],
+                    capture_output=True, timeout=30
+                )
+                out_file = out_base + '.txt'
+                if os.path.exists(out_file):
+                    with open(out_file) as f: text = f.read()
+                    print_tool_result("ocr_image", text[:120] or "(no text found)")
+                    return text.strip() or "(No text detected)"
 
-        result = ("OCR no disponible. Instala tesseract:\n"
+        result = ("OCR not available. Install tesseract:\n"
                   "  Linux: sudo apt install tesseract-ocr tesseract-ocr-spa\n"
                   "  macOS: brew install tesseract\n"
                   "  Python: pip install pytesseract pillow")
         print_tool_result("ocr_image", result)
         return result
     except Exception as e:
-        result = f"Error OCR: {e}"
+        result = f"OCR error: {e}"
         print_tool_result("ocr_image", result)
         return result
     finally:
@@ -345,9 +362,9 @@ funcs = {
     'ocr_image': ocr_image,
 }
 
-# ── HISTORIAL DE SESIONES ──────────────────────────────────────────────────────
+# ── HISTORY DE SESIONES ──────────────────────────────────────────────────────
 def save_session(msgs, session_id=None):
-    """Guarda la conversación en disco."""
+    """Save conversation to disk."""
     if not msgs or all(m['role'] == 'system' for m in msgs): return None
     if not session_id:
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -386,30 +403,30 @@ def open_history():
         if not sessions:
             clear_screen()
             print(get_banner())
-            print(f"\n  {C('INFO')}No hay conversaciones guardadas.{C_RESET}\n")
+            print(f"\n  {C('INFO')}No saved conversations.{C_RESET}\n")
             input(f"  {C('DIM')}[Enter]{C_RESET}")
             return None
 
         options = [f"{s['date']}  {C('INFO')}{s['model']}{C_RESET}  {C('DIM')}{s['preview']}{C_RESET}" for s in sessions]
-        options += ["── Borrar todo ──", "Back"]
+        options += ["── Delete all ──", "Back"]
 
-        plain_options = [f"{s['date']}  {s['model']}  {s['preview']}" for s in sessions] + ["── Borrar todo ──", "Back"]
+        plain_options = [f"{s['date']}  {s['model']}  {s['preview']}" for s in sessions] + ["── Delete all ──", "Back"]
 
         idx = 0
         while True:
             clear_screen()
             print(get_banner())
-            print(f"  {C('ACCENT')}HISTORIAL{C_RESET}  {C('INFO')}[Enter] cargar  [Del/d] borrar  [ESC] salir{C_RESET}\n")
+            print(f"  {C('ACCENT')}HISTORY{C_RESET}  {C('INFO')}[Enter] load  [d] delete  [ESC] exit{C_RESET}\n")
             for i, s in enumerate(sessions):
                 marker = f"  {C('SEL')}>{C_RESET}" if i == idx else "   "
                 print(f"{marker} {C('RESP')}{s['date']}{C_RESET}  {C('INFO')}{s['model']}{C_RESET}")
                 print(f"     {C('DIM')}{s['preview']}{C_RESET}")
             # Opciones finales
-            extras = ["── Borrar todo ──", "Back"]
+            extras = ["── Delete all ──", "Back"]
             for j, ex in enumerate(extras):
                 i = len(sessions) + j
                 marker = f"  {C('SEL')}>{C_RESET}" if i == idx else "   "
-                col = C('ERR') if 'Borrar' in ex else C('DIM')
+                col = C('ERR') if 'Delete' in ex else C('DIM')
                 print(f"{marker} {col}{ex}{C_RESET}")
 
             total = len(sessions) + len(extras)
@@ -420,7 +437,7 @@ def open_history():
             elif key in ['\r', '\n', '\r\n']:
                 if idx < len(sessions):
                     return sessions[idx]['messages']
-                elif idx == len(sessions):  # Borrar todo
+                elif idx == len(sessions):  # Delete all
                     shutil.rmtree(SESSIONS_DIR)
                     os.makedirs(SESSIONS_DIR, exist_ok=True)
                     break
@@ -492,7 +509,7 @@ def toggle_list_menu(title, items, state_dict, default_state=False, extra_top=No
     while True:
         clear_screen()
         print(get_banner())
-        print(f"\n  {C('ACCENT')}{title}{C_RESET}  {C('INFO')}[SPACE] toggle  [Enter] seleccionar  [ESC] salir{C_RESET}\n")
+        print(f"\n  {C('ACCENT')}{title}{C_RESET}  {C('INFO')}[SPACE] toggle  [Enter] seleccionar  [ESC] exit{C_RESET}\n")
 
         for i, item in enumerate(all_options):
             is_extra = i < n_extra
@@ -546,12 +563,12 @@ def open_skills():
         if result == "[Search skills]":
             clear_screen()
             print(get_banner())
-            print(f"\n  {C('ACCENT')}BUSCAR SKILLS{C_RESET}\n")
-            q = input(f"  {C('INFO')}Buscar:{C_RESET} ").strip()
+            print(f"\n  {C('ACCENT')}SEARCH SKILLS{C_RESET}\n")
+            q = input(f"  {C('INFO')}Search:{C_RESET} ").strip()
             if q:
                 clear_screen()
                 print(get_banner())
-                print(f"\n  {C('DIM')}Buscando skills para '{q}'…{C_RESET}\n")
+                print(f"\n  {C('DIM')}Searching skills for '{q}'…{C_RESET}\n")
                 found = search_skills_online(q)
                 if found:
                     # Guardar en catálogo extendido
@@ -563,9 +580,9 @@ def open_skills():
                     added = [s for s in found if s['name'] not in names]
                     existing += added
                     with open(SKILLS_CATALOG, 'w') as f: json.dump(existing, f, indent=2)
-                    print(f"  {C('OK')}✓ {len(added)} skills añadidas al catálogo.{C_RESET}\n")
+                    print(f"  {C('OK')}✓ {len(added)} skills added to catalog.{C_RESET}\n")
                 else:
-                    print(f"  {C('WARN')}No se encontraron skills.{C_RESET}\n")
+                    print(f"  {C('WARN')}No skills found.{C_RESET}\n")
                 input(f"  {C('DIM')}[Enter]{C_RESET}")
         else:
             break
@@ -575,7 +592,7 @@ def select_model():
     try:
         models = [m.model for m in client.list().models]
         if not models:
-            print(f"\n  {C('WARN')}No hay modelos. Usa /search o /pull.{C_RESET}")
+            print(f"\n  {C('WARN')}No models found. Use /search or /pull.{C_RESET}")
             input(f"  {C('DIM')}[Enter]{C_RESET}"); return None
         return interactive_menu(models, "SELECT MODEL")
     except Exception as e:
@@ -584,7 +601,7 @@ def select_model():
 def pull_model(model_name):
     clear_screen()
     print(get_banner())
-    print(f"\n  {C('ACCENT')}DESCARGANDO{C_RESET}  {C('INFO')}{model_name}{C_RESET}\n")
+    print(f"\n  {C('ACCENT')}DOWNLOADING{C_RESET}  {C('INFO')}{model_name}{C_RESET}\n")
     try:
         bar_width = 40
         cur_status = ""; cur_digest = ""
@@ -606,7 +623,7 @@ def pull_model(model_name):
                 bar  = "█" * fill + "░" * (bar_width - fill)
                 mb_d = completed / 1_000_000; mb_t = total / 1_000_000
                 print(f"\r  {C('THINK')}[{bar}]{C_RESET} {C('INFO')}{pct*100:.1f}% {mb_d:.1f}/{mb_t:.1f} MB{C_RESET}   ", end="", flush=True)
-        print(f"\n\n  {C('OK')}✓ '{model_name}' descargado.{C_RESET}")
+        print(f"\n\n  {C('OK')}✓ '{model_name}' downloaded.{C_RESET}")
     except Exception as e:
         print(f"\n  {C('ERR')}✗ Error: {e}{C_RESET}")
     print(); input(f"  {C('DIM')}[Enter]{C_RESET}")
@@ -681,7 +698,7 @@ def show_model_detail(model_info):
     # Construir lista de variantes seleccionables
     if isinstance(params, str) and ('/' in params or '–' in params or '-' in params):
         # Separar por / para variantes
-        raw_sizes = [s.strip() for s in params.replace('–','/').replace('-','/').split('/')]
+        raw_sizes = [s.strip() for s in params.replace('–', '/').split('/')]
         tags = []
         for s in raw_sizes:
             # Limpiar: "1.5B" → "1.5b", "671B" → "671b"
@@ -696,11 +713,11 @@ def show_model_detail(model_info):
     idx = 0
     while True:
         clear_screen(); print(get_banner())
-        print(f"\n  {C('ACCENT')}DETALLES{C_RESET}  {C('DIM')}{base_name}{C_RESET}\n")
-        print(f"  {C('RESP')}Descripción:{C_RESET} {desc}")
-        print(f"  {C('RESP')}Parámetros:{C_RESET}  {params}")
-        print(f"  {C('RESP')}Actualizado:{C_RESET} {upd}")
-        print(f"\n  {C('INFO')}Variantes disponibles:{C_RESET}  {C('DIM')}[↑↓] navegar  [Enter] descargar  [ESC] volver{C_RESET}\n")
+        print(f"\n  {C('ACCENT')}DETAILS{C_RESET}  {C('DIM')}{base_name}{C_RESET}\n")
+        print(f"  {C('RESP')}Description:{C_RESET} {desc}")
+        print(f"  {C('RESP')}Parameters:{C_RESET}  {params}")
+        print(f"  {C('RESP')}Updated:{C_RESET} {upd}")
+        print(f"\n  {C('INFO')}Available variants:{C_RESET}  {C('DIM')}[↑↓] navigate  [Enter] download  [ESC] back{C_RESET}\n")
         for i, tag in enumerate(tags):
             if i == idx:
                 print(f"  {C('SEL')}> {tag}{C_RESET}")
@@ -721,17 +738,17 @@ def search_models():
     while True:
         if loading:
             clear_screen(); print(get_banner())
-            print(f"\n  {C('DIM')}Cargando…{C_RESET}", flush=True)
+            print(f"\n  {C('DIM')}Loading…{C_RESET}", flush=True)
             models = fetch_ollama_models(query)
             loading = False
 
         clear_screen(); print(get_banner())
-        print(f"\n  {C('ACCENT')}BUSCAR MODELOS{C_RESET}  {C('DIM')}más nuevo → más antiguo{C_RESET}")
-        print(f"  {C('DIM')}búsqueda:{C_RESET} {C('RESP')}{query or '(todos)'}{C_RESET}")
-        print(f"  {C('INFO')}[↑↓] navegar  [→] detalles  [Enter] descargar  [n] nueva búsqueda  [ESC] salir{C_RESET}\n")
+        print(f"\n  {C('ACCENT')}SEARCH MODELS{C_RESET}  {C('DIM')}newest → oldest{C_RESET}")
+        print(f"  {C('DIM')}search:{C_RESET} {C('RESP')}{query or '(all)'}{C_RESET}")
+        print(f"  {C('INFO')}[↑↓] navigate  [→] details  [Enter] download  [n] new search  [ESC] exit{C_RESET}\n")
 
         if not models:
-            print(f"  {C('WARN')}No se encontraron modelos.{C_RESET}")
+            print(f"  {C('WARN')}No models found.{C_RESET}")
         else:
             for i, m in enumerate(models):
                 name = m.get('name', str(m)) if isinstance(m, dict) else str(m)
@@ -754,7 +771,7 @@ def search_models():
             pull_model(m.get('name', str(m)) if isinstance(m, dict) else str(m))
         elif key == 'n':
             clear_screen(); print(get_banner())
-            query = input(f"\n  {C('INFO')}Buscar:{C_RESET} ").strip()
+            query = input(f"\n  {C('INFO')}Search:{C_RESET} ").strip()
             idx = 0; loading = True
 
 # ── SETTINGS ───────────────────────────────────────────────────────────────────
@@ -765,8 +782,8 @@ def open_settings():
             f"Thinking: {session.thinking_mode}",
             f"Level:    {session.thinking_level}",
             f"Theme:    {session.theme}",
-            "Pull modelo…",
-            "Buscar modelos…",
+            "Pull model…",
+            "Search models…",
             "Chats…",
             "Back",
         ]
@@ -786,50 +803,50 @@ def open_settings():
             if th: session.theme = th; session.save_config()
         elif "Pull"    in opt:
             clear_screen(); print(get_banner())
-            name = input(f"\n  {C('INFO')}Nombre del modelo:{C_RESET} ").strip()
+            name = input(f"\n  {C('INFO')}Model name:{C_RESET} ").strip()
             if name: pull_model(name)
-        elif "Buscar"  in opt:
+        elif "Search" in opt:
             search_models()
         elif "Chats"   in opt:
             open_history_settings()
 
 def open_history_settings():
-    """Gestión de chats desde Settings."""
+    """Manage chats from Settings."""
     while True:
         sessions_list = list_sessions()
         if not sessions_list:
             clear_screen(); print(get_banner())
-            print(f"\n  {C('INFO')}No hay conversaciones guardadas.{C_RESET}\n")
+            print(f"\n  {C('INFO')}No saved conversations.{C_RESET}\n")
             input(f"  {C('DIM')}[Enter]{C_RESET}"); return
 
         opts = [f"{s['date']}  {s['model']}  {s['preview']}" for s in sessions_list]
-        opts += ["── Borrar todo ──", "Back"]
-        choice = interactive_menu(opts, "CHATS  [Enter=abrir/borrar]")
+        opts += ["── Delete all ──", "Back"]
+        choice = interactive_menu(opts, "CHATS  [Enter=open/delete]")
         if not choice or "Back" in choice: break
-        if "Borrar todo" in choice:
+        if "Delete all" in choice:
             shutil.rmtree(SESSIONS_DIR); os.makedirs(SESSIONS_DIR, exist_ok=True)
             break
-        # Encontrar sesión y ofrecer borrar
+        # Find session and offer to delete
         for s in sessions_list:
             label = f"{s['date']}  {s['model']}  {s['preview']}"
             if choice == label:
-                action = interactive_menu(["Ver preview", "Borrar este chat", "Back"], f"CHAT: {s['date']}")
-                if action == "Borrar este chat":
+                action = interactive_menu(["View preview", "Delete this chat", "Back"], f"CHAT: {s['date']}")
+                if action == "Delete this chat":
                     os.remove(s['path'])
                 break
 
 # ── SYSTEM PROMPT ──────────────────────────────────────────────────────────────
 def get_system_prompt():
     active_tool_names = [t['function']['name'] for t in get_active_tools()]
-    tools_str = ", ".join(active_tool_names) if active_tool_names else "ninguna"
-    base = f"Eres un Asistente de Rainbow Technology. Herramientas activas: {tools_str}."
+    tools_str = ", ".join(active_tool_names) if active_tool_names else "none"
+    base = f"You are a Rainbow Technology Assistant. Active tools: {tools_str}."
     thinking = {
-        "OFF":   "Responde directo sin etiquetas.",
-        "ON":    "Usa etiquetas <thought>...</thought> para razonar ANTES de responder.",
-        "FORCE": "OBLIGATORIO: Usa <thought>...</thought> para razonamiento extenso ANTES de usar herramientas.",
+        "OFF":   "Respond directly without tags.",
+        "ON":    "Use <thought>...</thought> tags to reason BEFORE responding.",
+        "FORCE": "MANDATORY: Use <thought>...</thought> for extensive reasoning BEFORE using tools.",
     }[session.thinking_mode]
     skill_prompt = get_active_skill_prompt()
-    return f"{base}\n{thinking}\nTodo razonamiento va dentro de <thought>.{skill_prompt}"
+    return f"{base}\n{thinking}\nAll reasoning goes inside <thought>.{skill_prompt}"
 
 # ── STREAMING MEJORADO ─────────────────────────────────────────────────────────
 def stream_response(response_iter, show_thinking=True):
@@ -853,11 +870,11 @@ def stream_response(response_iter, show_thinking=True):
                     before = buf[:ts]
                     if before:
                         if not response_shown:
-                            print(f"\n  {C('RESP')}── Respuesta ──────────────────────────{C_RESET}\n  ", end="", flush=True)
+                            print(f"\n  {C('RESP')}── Response ────────────────────────────{C_RESET}\n  ", end="", flush=True)
                             response_shown = True
                         print(f"{C('RESP')}{before}{C_RESET}", end="", flush=True)
                     if not thought_shown and show_thinking:
-                        print(f"\n  {C('THINK_L')}── Pensamiento ────────────────────────{C_RESET}\n  {C('THINK')}", end="", flush=True)
+                        print(f"\n  {C('THINK_L')}── Thinking ────────────────────────────{C_RESET}\n  {C('THINK')}", end="", flush=True)
                         thought_shown = True
                     in_thought = True
                     buf = buf[ts + len("<thought>"):]
@@ -872,7 +889,7 @@ def stream_response(response_iter, show_thinking=True):
                     in_thought = False
                     buf = buf[te + len("</thought>"):]
                     if not response_shown:
-                        print(f"\n  {C('RESP')}── Respuesta ──────────────────────────{C_RESET}\n  ", end="", flush=True)
+                        print(f"\n  {C('RESP')}── Response ────────────────────────────{C_RESET}\n  ", end="", flush=True)
                         response_shown = True
                 else:
                     break
@@ -886,17 +903,17 @@ def stream_response(response_iter, show_thinking=True):
         if to_print:
             if in_thought:
                 if not thought_shown and show_thinking:
-                    print(f"\n  {C('THINK_L')}── Pensamiento ────────────────────────{C_RESET}\n  {C('THINK')}", end="", flush=True)
+                    print(f"\n  {C('THINK_L')}── Thinking ────────────────────────────{C_RESET}\n  {C('THINK')}", end="", flush=True)
                     thought_shown = True
                 print(f"{C('THINK')}{to_print}{C_RESET}", end="", flush=True)
             else:
                 if not response_shown and not thought_shown:
                     if show_thinking and session.thinking_mode != "OFF":
-                        print(f"\n  {C('THINK_L')}── Pensamiento ────────────────────────{C_RESET}\n  {C('THINK')}", end="", flush=True)
+                        print(f"\n  {C('THINK_L')}── Thinking ────────────────────────────{C_RESET}\n  {C('THINK')}", end="", flush=True)
                         thought_shown = True; in_thought = True
                         print(f"{C('THINK')}{to_print}{C_RESET}", end="", flush=True)
                     else:
-                        print(f"\n  {C('RESP')}── Respuesta ──────────────────────────{C_RESET}\n  ", end="", flush=True)
+                        print(f"\n  {C('RESP')}── Response ────────────────────────────{C_RESET}\n  ", end="", flush=True)
                         response_shown = True
                         print(f"{C('RESP')}{to_print}{C_RESET}", end="", flush=True)
                 else:
@@ -918,7 +935,7 @@ def print_status():
     vision_str = f"  {C('OK')}👁 vision{C_RESET}" if is_vision_model(session.model) else ""
     print(f"  {C('INFO')}{session.model}  thinking:{session.thinking_mode}  tools:{active_t}/{len(session.tools_enabled)}{skills_str}  theme:{session.theme}{vision_str}{C_RESET}")
     img_hint = f" /img <ruta|url>" if is_vision_model(session.model) else ""
-    print(f"  {C('DIM')}Comandos: /exit /settings /tools /skills /search /pull <m> /history{img_hint}{C_RESET}\n")
+    print(f"  {C('DIM')}Commands: /exit /settings /tools /skills /search /pull <m> /history{img_hint}{C_RESET}\n")
 
 # ── CHAT ───────────────────────────────────────────────────────────────────────
 # ── VISION ────────────────────────────────────────────────────────────────────
@@ -975,14 +992,13 @@ def parse_image_input(inp):
             return "Describe esta imagen.", path
 
     # 3. Ruta suelta — puede tener texto después
-    #    Buscar la primera "palabra" que sea un path de imagen existente
+    #    Find the first "palabra" que sea un path de imagen existente
     #    (cubre rutas con espacios escapados que el terminal pega con \ )
     unescaped = clean.replace('\\ ', ' ')
     # Intentar el input completo primero, luego la primera "palabra"
     candidates = [unescaped]
     if ' ' in unescaped:
         # primera parte podría ser ruta, resto texto
-        idx = unescaped.rfind(' ')
         # recorre de derecha a izquierda buscando extensión de imagen
         for i in range(len(unescaped), 0, -1):
             part = unescaped[:i]
@@ -1029,13 +1045,13 @@ def chat(preloaded_msgs=None):
             if inp.lower().startswith('/pull '):
                 name = inp[6:].strip()
                 if name: pull_model(name)
-                else: print(f"  {C('WARN')}Uso: /pull <modelo>{C_RESET}")
+                else: print(f"  {C('WARN')}Usage: /pull <model>{C_RESET}")
                 continue
             if inp.lower() == '/history':
                 loaded = open_history()
                 if loaded:
                     msgs = loaded
-                    print(f"\n  {C('OK')}✓ Conversación cargada ({len([m for m in msgs if m['role']=='user'])} mensajes){C_RESET}\n")
+                    print(f"\n  {C('OK')}✓ Conversation loaded ({len([m for m in msgs if m['role']=='user'])} messages){C_RESET}\n")
                 clear_screen(); print(get_banner()); print_status(); continue
 
             # ── Imagen ──
@@ -1045,25 +1061,30 @@ def chat(preloaded_msgs=None):
                 if is_vision_model(session.model):
                     # Modelo vision nativo: cargar imagen en base64
                     try:
-                        print(f"  {C('DIM')}Cargando imagen…{C_RESET}", end="", flush=True)
+                        print(f"  {C('DIM')}Loading image…{C_RESET}", end="", flush=True)
                         img_b64 = load_image_b64(img_path)
-                        print(f"\r  {C('OK')}✓ Imagen cargada ({len(img_b64)//1024}KB){C_RESET}\n")
+                        print(f"\r  {C('OK')}✓ Image loaded ({len(img_b64)//1024}KB){C_RESET}\n")
                         inp = text
                     except Exception as e:
-                        print(f"\r  {C('ERR')}✗ No se pudo cargar la imagen: {e}{C_RESET}\n")
+                        print(f"\r  {C('ERR')}✗ Could not load image: {e}{C_RESET}\n")
                         continue
                 else:
                     # Modelo sin vision: redirigir a tool describe_image/ocr_image
                     tool_enabled_names = [t['function']['name'] for t in get_active_tools()]
                     if 'describe_image' in tool_enabled_names or 'ocr_image' in tool_enabled_names:
-                        print(f"  {C('INFO')}El modelo no es vision — usando tools para analizar la imagen…{C_RESET}\n")
+                        print(f"  {C('INFO')}Non-vision model — using tools to analyze image…{C_RESET}\n")
                         # Inyectar la ruta en el mensaje para que el modelo llame la tool
-                        inp = f"{text}\nImagen a analizar: {img_path}"
+                        inp = f"{text}\nImage to analyze: {img_path}"
                         img_path = None  # no enviar como imagen nativa
                     else:
-                        print(f"\n  {C('WARN')}⚠ Modelo sin vision y tools describe_image/ocr_image desactivadas.")
-                        print(f"  {C('DIM')}Activa las tools en /tools o usa un modelo vision.{C_RESET}\n")
+                        print(f"\n  {C('WARN')}⚠ Non-vision model and describe_image/ocr_image tools are disabled.")
+                        print(f"  {C('DIM')}Enable tools in /tools or use a vision model.{C_RESET}\n")
                         continue
+
+            # Guard: modelo seleccionado
+            if not session.model:
+                print(f"\n  {C('ERR')}✗ No model selected. Use /settings to choose one.{C_RESET}")
+                continue
 
             # Construir mensaje de usuario
             if img_b64:
@@ -1076,43 +1097,64 @@ def chat(preloaded_msgs=None):
             active_tools = get_active_tools()
             # Los modelos vision no suelen soportar tools simultáneamente
             use_tools = active_tools if (active_tools and not img_b64) else None
-            response = client.chat(
-                model=session.model,
-                messages=msgs,
-                tools=use_tools,
-                stream=True,
-            )
-            full_content = stream_response(response, show_thinking=show_thinking)
+            try:
+                response = client.chat(
+                    model=session.model,
+                    messages=msgs,
+                    tools=use_tools,
+                    stream=True,
+                )
+                full_content = stream_response(response, show_thinking=show_thinking)
+            except Exception as e:
+                msgs.pop()  # quitar el mensaje del usuario que falló
+                print(f"\n  {C('ERR')}✗ Error communicating with model: {e}{C_RESET}")
+                if 'model' in str(e).lower() or 'not found' in str(e).lower():
+                    print(f"  {C('WARN')}Model '{session.model}' may not be available. Use /settings to change it.{C_RESET}")
+                elif 'connect' in str(e).lower() or 'refused' in str(e).lower():
+                    print(f"  {C('WARN')}Cannot connect to Ollama. Is it running?{C_RESET}")
+                continue
 
             ast_msg = {'role': 'assistant', 'content': full_content}
             msgs.append(ast_msg)
 
-            # ── Tool calls: re-invoke sin stream para capturarlos ──
-            if not full_content.strip() and active_tools:
-                r2 = client.chat(model=session.model, messages=msgs[:-1], tools=active_tools, stream=False)
-                m2 = r2['message']
-                if hasattr(m2, 'tool_calls') and m2.tool_calls:
-                    tools_called = list(m2.tool_calls)
-                    msgs[-1]['content'] = m2.content or ""
-                    msgs[-1]['tool_calls'] = tools_called
+            # ── Tool calls: siempre verificar cuando hay tools activas ──
+            # El stream no expone tool_calls chunk a chunk — hay que re-invocar sin stream
+            if active_tools and not img_b64:
+                try:
+                    r2 = client.chat(model=session.model, messages=msgs[:-1], tools=active_tools, stream=False)
+                    m2 = r2.message if hasattr(r2, 'message') else r2['message']
+                    if hasattr(m2, 'tool_calls') and m2.tool_calls:
+                        tools_called = list(m2.tool_calls)
+                        msgs[-1]['content'] = m2.content or full_content
+                        msgs[-1]['tool_calls'] = tools_called
 
-                    print(f"\n  {C('DIM')}── Ejecutando herramientas ─────────────{C_RESET}")
-                    for t in tools_called:
-                        f = funcs.get(t.function.name)
-                        if f:
-                            res = f(**t.function.arguments)
-                            msgs.append({'role': 'tool', 'content': str(res), 'name': t.function.name})
+                        print(f"\n  {C('DIM')}── Executing tools ────────────────────{C_RESET}")
+                        for t in tools_called:
+                            f = funcs.get(t.function.name)
+                            if f:
+                                try:
+                                    res = f(**t.function.arguments)
+                                except Exception as te:
+                                    res = f"Error in tool {t.function.name}: {te}"
+                                    print(f"\n  {C('ERR')}✗ {res}{C_RESET}")
+                                msgs.append({'role': 'tool', 'content': str(res), 'name': t.function.name})
+                            else:
+                                print(f"\n  {C('WARN')}⚠ Unknown tool: {t.function.name}{C_RESET}")
 
-                    final = client.chat(model=session.model, messages=msgs, stream=True)
-                    final_text = stream_response(final, show_thinking=show_thinking)
-                    msgs.append({'role': 'assistant', 'content': final_text})
+                        final = client.chat(model=session.model, messages=msgs, stream=True)
+                        final_text = stream_response(final, show_thinking=show_thinking)
+                        msgs.append({'role': 'assistant', 'content': final_text})
+                except Exception as e:
+                    print(f"\n  {C('ERR')}✗ Error processing tool calls: {e}{C_RESET}")
 
             # Autoguardado
             save_session(msgs, session_id)
 
         except KeyboardInterrupt:
             save_session(msgs, session_id)
-            print(f"\n  {C('DIM')}(Ctrl+C — usa /exit para salir){C_RESET}")
+            print(f"\n  {C('DIM')}(Ctrl+C — use /exit to quit){C_RESET}")
+        except Exception as e:
+            print(f"\n  {C('ERR')}✗ Unexpected error: {e}{C_RESET}")
 
     save_session(msgs, session_id)
 
@@ -1122,11 +1164,11 @@ _ollama_proc = None  # proceso ollama serve lanzado por nosotros
 def _get_ollama_install_hint():
     """Instrucciones de instalación según el SO."""
     if sys.platform == 'win32':
-        return "Descárgalo en: https://ollama.com/download/windows"
+        return "Download at: https://ollama.com/download/windows"
     elif sys.platform == 'darwin':
-        return "Instálalo con: brew install ollama  o  https://ollama.com/download/mac"
+        return "Install it with: brew install ollama  o  https://ollama.com/download/mac"
     else:
-        return "Instálalo con: curl -fsSL https://ollama.com/install.sh | sh"
+        return "Install it with: curl -fsSL https://ollama.com/install.sh | sh"
 
 def ensure_ollama_running():
     """Comprueba si ollama está corriendo; si no, lo arranca en segundo plano."""
@@ -1143,15 +1185,15 @@ def ensure_ollama_running():
     # 2. Comprobar si el binario existe
     if not shutil.which('ollama'):
         clear_screen(); print(get_banner())
-        print(f"\n  {C('ERR')}✗ Ollama no está instalado.{C_RESET}")
+        print(f"\n  {C('ERR')}✗ Ollama is not installed.{C_RESET}")
         print(f"  {C('INFO')}{_get_ollama_install_hint()}{C_RESET}")
-        print(f"  {C('DIM')}O ejecuta el instalador:{C_RESET}  ./install.sh\n")
-        input(f"  {C('DIM')}[Enter para salir]{C_RESET}")
+        print(f"  {C('DIM')}Or run the installer:{C_RESET}  ./install.sh\n")
+        input(f"  {C('DIM')}[Enter to exit]{C_RESET}")
         return False
 
     # 3. Arrancarlo en segundo plano
     clear_screen(); print(get_banner())
-    print(f"\n  {C('WARN')}Ollama no está corriendo. Arrancando en segundo plano…{C_RESET}\n")
+    print(f"\n  {C('WARN')}Ollama is not running. Starting in background…{C_RESET}\n")
     try:
         kwargs = dict(stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if sys.platform == 'win32':
@@ -1161,7 +1203,7 @@ def ensure_ollama_running():
             kwargs['start_new_session'] = True
         _ollama_proc = subprocess.Popen(['ollama', 'serve'], **kwargs)
     except Exception as e:
-        print(f"  {C('ERR')}✗ No se pudo arrancar ollama serve: {e}{C_RESET}\n")
+        print(f"  {C('ERR')}✗ Could not start ollama serve: {e}{C_RESET}\n")
         input(f"  {C('DIM')}[Enter]{C_RESET}")
         return False
 
@@ -1171,20 +1213,20 @@ def ensure_ollama_running():
         time.sleep(0.5)
         filled = int(bar_width * (i + 1) / 30)
         bar = "█" * filled + "░" * (bar_width - filled)
-        print(f"\r  {C('THINK')}[{bar}]{C_RESET} {C('DIM')}esperando ollama…{C_RESET}  ", end="", flush=True)
+        print(f"\r  {C('THINK')}[{bar}]{C_RESET} {C('DIM')}waiting for ollama…{C_RESET}  ", end="", flush=True)
         try:
             client.list()
-            print(f"\n\n  {C('OK')}✓ Ollama listo.{C_RESET}\n")
+            print(f"\n\n  {C('OK')}✓ Ollama ready.{C_RESET}\n")
             return True
         except Exception:
             pass
 
-    print(f"\n\n  {C('ERR')}✗ Ollama no respondió. Intenta manualmente: ollama serve{C_RESET}\n")
+    print(f"\n\n  {C('ERR')}✗ Ollama did not respond. Try manually: ollama serve{C_RESET}\n")
     input(f"  {C('DIM')}[Enter]{C_RESET}")
     return False
 
 def stop_ollama_if_we_started():
-    """Si nosotros arrancamos ollama serve, lo detenemos al salir."""
+    """Si nosotros arrancamos ollama serve, lo detenemos al exit."""
     global _ollama_proc
     if _ollama_proc and _ollama_proc.poll() is None:
         _ollama_proc.terminate()
