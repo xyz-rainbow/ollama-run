@@ -490,18 +490,14 @@ def get_key():
         old = termios.tcgetattr(fd)
         try:
             tty.setraw(fd)
-            ch = sys.stdin.read(1)
+            ch = os.read(fd, 1).decode('utf-8', errors='replace')
             if ch == '\x1b':
-                # Leer todos los bytes de la secuencia escape en bucle
-                # Se detiene cuando no llegan más bytes en 100ms (ESC puro)
-                # o cuando llega el carácter final de una secuencia CSI (letra o ~)
                 while True:
-                    ready, _, _ = select.select([sys.stdin], [], [], 0.1)
+                    ready, _, _ = select.select([fd], [], [], 0.1)
                     if not ready:
-                        break  # no más bytes → ESC puro
-                    c = sys.stdin.read(1)
+                        break
+                    c = os.read(fd, 1).decode('utf-8', errors='replace')
                     ch += c
-                    # Fin de secuencia CSI: letra A-Z/a-z o '~'
                     if c.isalpha() or c == '~':
                         break
         finally:
