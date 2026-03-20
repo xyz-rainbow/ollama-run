@@ -1051,16 +1051,8 @@ def get_system_prompt():
 # ── STREAMING MEJORADO ─────────────────────────────────────────────────────────
 def stream_response(response_iter, show_thinking=True):
     full_text = ""
-    in_thought = False
     thought_shown = False
     response_shown = False
-    buf = ""
-
-    def _ensure_response_header():
-        nonlocal response_shown
-        if not response_shown:
-            print(f"\n  {C('RESP')}── Response ────────────────────────────{C_RESET}\n  ", end="", flush=True)
-            response_shown = True
 
     def _ensure_thinking_header():
         nonlocal thought_shown
@@ -1068,60 +1060,26 @@ def stream_response(response_iter, show_thinking=True):
             print(f"\n  {C('THINK_L')}── Thinking ────────────────────────────{C_RESET}\n  {C('THINK')}", end="", flush=True)
             thought_shown = True
 
+    def _ensure_response_header():
+        nonlocal response_shown
+        if not response_shown:
+            print(f"\n  {C('RESP')}── Response ────────────────────────────{C_RESET}\n  ", end="", flush=True)
+            response_shown = True
+
     for chunk in response_iter:
-        content = chunk['message'].content
-        if not content: continue
-        buf += content
-        full_text += content
+        thinking_piece = chunk['message'].thinking
+        content_piece  = chunk['message'].content
 
-        # Procesar buffer buscando tags
-        while True:
-            if not in_thought:
-                ts = buf.find("<thought>")
-                if ts != -1:
-                    before = buf[:ts]
-                    if before:
-                        _ensure_response_header()
-                        print(f"{C('RESP')}{before}{C_RESET}", end="", flush=True)
-                    _ensure_thinking_header()
-                    in_thought = True
-                    buf = buf[ts + len("<thought>"):]
-                else:
-                    break
-            else:
-                te = buf.find("</thought>")
-                if te != -1:
-                    if buf[:te]:
-                        _ensure_thinking_header()
-                        print(f"{C('THINK')}{buf[:te]}{C_RESET}", end="", flush=True)
-                    print(f"\n  {C('DIM')}───────────────────────────────────────{C_RESET}", end="", flush=True)
-                    in_thought = False
-                    buf = buf[te + len("</thought>"):]
-                else:
-                    break
-
-        # Imprimir parte segura del buffer
-        safe = len(buf)
-        lt = buf.rfind('<')
-        if lt != -1 and lt > len(buf) - 12: safe = lt
-        to_print = buf[:safe]; buf = buf[safe:]
-
-        if to_print:
-            if in_thought:
-                _ensure_thinking_header()
-                print(f"{C('THINK')}{to_print}{C_RESET}", end="", flush=True)
-            else:
-                _ensure_response_header()
-                print(f"{C('RESP')}{to_print}{C_RESET}", end="", flush=True)
-
-    if buf:
-        if in_thought:
+        if thinking_piece and show_thinking:
             _ensure_thinking_header()
-            print(f"{C('THINK')}{buf}{C_RESET}", end="", flush=True)
-        else:
-            if buf.strip():
-                _ensure_response_header()
-            print(f"{C('RESP')}{buf}{C_RESET}", end="", flush=True)
+            print(f"{C('THINK')}{thinking_piece}{C_RESET}", end="", flush=True)
+
+        if content_piece:
+            if thought_shown and not response_shown:
+                print(f"\n  {C('DIM')}───────────────────────────────────────{C_RESET}", end="", flush=True)
+            _ensure_response_header()
+            print(f"{C('RESP')}{content_piece}{C_RESET}", end="", flush=True)
+            full_text += content_piece
 
     if response_shown or thought_shown:
         print(f"\n  {C('DIM')}───────────────────────────────────────{C_RESET}\n")
@@ -1328,43 +1286,14 @@ def chat(preloaded_msgs=None):
             use_tools = active_tools if (active_tools and not img_b64) else None
 
             try:
-                thinking_text = ""
-
-                # ── Step 1: thinking (ON/FORCE) — separate call, no tools ──
-                if show_thinking and not img_b64:
-                    think_depth = "extensively and step by step" if session.thinking_mode == "FORCE" else "briefly"
-                    think_sys = (
-                        f"Think {think_depth} about the user's request. "
-                        "Output ONLY your internal reasoning — no greeting, no final answer, just raw thinking."
-                    )
-                    think_msgs = [{"role": "system", "content": think_sys}] + [
-                        m for m in msgs if m.get("role") != "system"
-                    ]
-                    print(f"\n  {C('THINK_L')}── Thinking ────────────────────────────{C_RESET}\n  {C('THINK')}", end="", flush=True)
-                    think_resp = client.chat(model=session.model, messages=think_msgs, stream=True)
-                    for chunk in think_resp:
-                        piece = chunk['message'].content
-                        if piece:
-                            thinking_text += piece
-                            print(f"{C('THINK')}{piece}{C_RESET}", end="", flush=True)
-                    print(f"\n  {C('DIM')}───────────────────────────────────────{C_RESET}", flush=True)
-
-                # ── Step 2: actual response ──
-                response_msgs = list(msgs)
-                if thinking_text:
-                    # Inject thinking as hidden context so response is informed by it
-                    response_msgs[-1] = {
-                        **msgs[-1],
-                        'content': msgs[-1]['content'] + f"\n\n[internal reasoning: {thinking_text}]"
-                    }
-
                 response = client.chat(
                     model=session.model,
-                    messages=response_msgs,
+                    messages=msgs,
                     tools=use_tools,
                     stream=True,
+                    think=show_thinking,
                 )
-                full_content = stream_response(response, show_thinking=False)
+                full_content = stream_response(response, show_thinking=show_thinking)
 
             except Exception as e:
                 msgs.pop()  # quitar el mensaje del usuario que falló
@@ -1402,7 +1331,7 @@ def chat(preloaded_msgs=None):
                             else:
                                 print(f"\n  {C('WARN')}⚠ Unknown tool: {t.function.name}{C_RESET}")
 
-                        final = client.chat(model=session.model, messages=msgs, stream=True)
+                        final = client.chat(model=session.model, messages=msgs, stream=True, think=show_thinking)
                         final_text = stream_response(final, show_thinking=show_thinking)
                         msgs.append({'role': 'assistant', 'content': final_text})
                 except Exception as e:
