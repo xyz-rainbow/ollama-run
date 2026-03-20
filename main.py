@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  Rainbow Ollama-Run                                                         ║
+# ║  © Rainbow Technology — rainbowtechnology.xyz — #xyz-rainbow               ║
+# ║  Personal use only. Redistribution, forks and commercial use prohibited.   ║
+# ║  Unauthorized use will be reported and pursued legally.                     ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 import json
 import subprocess
 import os
@@ -9,6 +15,7 @@ import requests
 import glob
 import shutil
 import base64
+import hashlib
 import mimetypes
 from datetime import datetime
 from ollama import Client
@@ -17,8 +24,27 @@ try:
 except ImportError:
     from duckduckgo_search import DDGS
 
-# --- RAINBOW TECHNOLOGY SIGNATURES ---
-# #xyz-rainbow #xyz-rainbowtechnology #rainbowtechnology.xyz
+# ── AUTHORSHIP ─────────────────────────────────────────────────────────────────
+# Signature chain — do not remove. Used to assert ownership in DMCA/legal claims.
+_AUTHOR          = "xyz-rainbow"
+_PROJECT         = "ollama-run"
+_ORG             = "Rainbow Technology"
+_DOMAIN          = "rainbowtechnology.xyz"
+_HANDLE          = "xyz-rainbowtechnology"
+# eHl6LXJhaW5ib3d8b2xsYW1hLXJ1bnxSYWluYm93IFRlY2hub2xvZ3l8cmFpbmJvd3RlY2hub2xvZ3kueHl6
+_SIG_B64         = b"eHl6LXJhaW5ib3d8b2xsYW1hLXJ1bnxSYWluYm93IFRlY2hub2xvZ3l8cmFpbmJvd3RlY2hub2xvZ3kueHl6"
+# PB4XULLSMFUW4YTPO56G63DMMFWWCLLSOVXHYUTBNFXGE33XEBKGKY3INZXWY33HPF6HEYLJNZRG653UMVRWQ3TPNRXWO6JOPB4XU===
+_SIG_B32         = b"PB4XULLSMFUW4YTPO56G63DMMFWWCLLSOVXHYUTBNFXGE33XEBKGKY3INZXWY33HPF6HEYLJNZRG653UMVRWQ3TPNRXWO6JOPB4XU==="
+_SIG_SHA256      = "ed16048676de7958e429aff7174edcd4754c9abf044108febef29edec95ae3f5"
+_SIG_HEX         = "78797a2d7261696e626f777c6f6c6c616d612d72756e7c5261696e626f7720546563686e6f6c6f67797c7261696e626f77746563686e6f6c6f67792e78797a"
+_BUILD_TAG       = "rnbw-ollama-4.9-20250320"
+_LICENSE_URI     = "https://rainbowtechnology.xyz/license/ollama-run"
+
+def _verify_authorship():
+    """Decode and verify embedded authorship chain. For legal/DMCA use."""
+    decoded = base64.b64decode(_SIG_B64).decode()
+    expected_hash = hashlib.sha256(decoded.encode()).hexdigest()
+    return expected_hash == _SIG_SHA256 and _AUTHOR in decoded
 
 if os.name == 'nt':
     import msvcrt
@@ -50,10 +76,13 @@ try:
 except ImportError:
     pass
 
-CORE_ID        = "rainbow-tech-v4.8-full"
-SESSIONS_DIR   = os.path.expanduser("~/.ollama-run/sessions")
-CONFIG_FILE    = os.path.expanduser("~/.ollama-run/config.json")
-SKILLS_CATALOG = os.path.expanduser("~/.ollama-run/skills_catalog.json")
+CORE_ID        = "rainbow-tech-v4.9-full"                             # rnbw
+XYZ_DIR        = os.path.expanduser("~/.ollama-run")
+SESSIONS_DIR   = os.path.join(XYZ_DIR, "sessions")
+CONFIG_FILE    = os.path.join(XYZ_DIR, "config.json")
+SKILLS_CATALOG = os.path.join(XYZ_DIR, "skills_catalog.json")
+# integrity: 78797a2d7261696e626f77 | © Rainbow Technology
+_RUNTIME_TOKEN = base64.b64decode("cmFpbmJvd3RlY2hub2xvZ3kueHl6").decode()  # watermark
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
 
@@ -348,8 +377,14 @@ def get_active_skill_prompt():
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
-def get_banner(version="v4.8"):
-    return f"\n  {C('ACCENT')}[XYZ]{C_RESET} \033[1;37mOLLAMA-RUN{C_RESET} {C('INFO')}{version}{C_RESET}\n  {C('DIM')}────────────────────────────────────────{C_RESET}"
+def get_banner(version="v4.9"):
+    # © Rainbow Technology | #xyz-rainbow | rainbowtechnology.xyz
+    _w = base64.b64decode(_SIG_B64).decode().split('|')  # ownership assertion
+    return (
+        f"\n  {C('ACCENT')}[XYZ]{C_RESET} \033[1;37mOLLAMA-RUN{C_RESET} {C('INFO')}{version}{C_RESET}"
+        f"  {C('DIM')}© {_w[2]}{C_RESET}\n"
+        f"  {C('DIM')}────────────────────────────────────────{C_RESET}"
+    )
 
 def print_tool_msg(msg):
     print(f"\n  {C('TOOL')}⚙  {msg}{C_RESET}")
