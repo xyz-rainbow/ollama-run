@@ -65,35 +65,40 @@ client = Client()
 
 # ── COLORES POR TEMA ───────────────────────────────────────────────────────────
 THEMES = {
+    # default: thinking=cyan  response=green  tool=yellow
     "default": dict(
-        THINK_L="\033[1;96m", THINK="\033[0;96m", RESP="\033[0;92m",
-        TOOL="\033[1;33m",    TOOL_R="\033[0;33m", INFO="\033[0;90m",
-        ACCENT="\033[1;96m",  SEL="\033[1;32m",    WARN="\033[1;33m",
-        OK="\033[1;32m",      ERR="\033[1;31m",    DIM="\033[2m",
+        THINK_L="\033[1;96m",  THINK="\033[0;96m",   RESP="\033[0;92m",
+        TOOL="\033[1;33m",     TOOL_R="\033[0;33m",  INFO="\033[0;90m",
+        ACCENT="\033[1;96m",   SEL="\033[1;32m",     WARN="\033[1;33m",
+        OK="\033[1;32m",       ERR="\033[1;31m",     DIM="\033[2m",
     ),
+    # matrix: thinking=dim green  response=bright green  tool=bold white
     "matrix": dict(
-        THINK_L="\033[1;32m", THINK="\033[0;32m", RESP="\033[1;32m",
-        TOOL="\033[0;32m",    TOOL_R="\033[2;32m", INFO="\033[2;32m",
-        ACCENT="\033[1;32m",  SEL="\033[1;92m",   WARN="\033[1;32m",
-        OK="\033[1;32m",      ERR="\033[0;31m",   DIM="\033[2m",
+        THINK_L="\033[1;32m",  THINK="\033[2;32m",   RESP="\033[1;92m",
+        TOOL="\033[1;37m",     TOOL_R="\033[0;37m",  INFO="\033[2;32m",
+        ACCENT="\033[1;32m",   SEL="\033[1;92m",     WARN="\033[0;33m",
+        OK="\033[1;32m",       ERR="\033[0;31m",     DIM="\033[2m",
     ),
+    # dracula: thinking=purple  response=pink/magenta  tool=yellow
     "dracula": dict(
-        THINK_L="\033[1;35m", THINK="\033[0;35m", RESP="\033[0;95m",
-        TOOL="\033[1;33m",    TOOL_R="\033[0;33m", INFO="\033[0;90m",
-        ACCENT="\033[1;35m",  SEL="\033[1;95m",   WARN="\033[1;33m",
-        OK="\033[1;32m",      ERR="\033[1;31m",   DIM="\033[2m",
+        THINK_L="\033[1;35m",  THINK="\033[0;35m",   RESP="\033[1;95m",
+        TOOL="\033[1;33m",     TOOL_R="\033[0;33m",  INFO="\033[0;90m",
+        ACCENT="\033[1;35m",   SEL="\033[1;95m",     WARN="\033[1;33m",
+        OK="\033[1;32m",       ERR="\033[1;31m",     DIM="\033[2m",
     ),
+    # amber: thinking=dim orange  response=bright yellow  tool=cyan
     "amber": dict(
-        THINK_L="\033[1;33m", THINK="\033[0;33m", RESP="\033[1;33m",
-        TOOL="\033[0;33m",    TOOL_R="\033[2;33m", INFO="\033[2;33m",
-        ACCENT="\033[1;33m",  SEL="\033[1;93m",   WARN="\033[1;31m",
-        OK="\033[1;33m",      ERR="\033[1;31m",   DIM="\033[2m",
+        THINK_L="\033[1;33m",  THINK="\033[2;33m",   RESP="\033[1;93m",
+        TOOL="\033[0;96m",     TOOL_R="\033[2;96m",  INFO="\033[2;33m",
+        ACCENT="\033[1;33m",   SEL="\033[1;93m",     WARN="\033[1;31m",
+        OK="\033[1;33m",       ERR="\033[1;31m",     DIM="\033[2m",
     ),
+    # mono: thinking=dim  response=normal  tool=bold+underline
     "mono": dict(
-        THINK_L="\033[1m",  THINK="\033[2m",  RESP="\033[0m",
-        TOOL="\033[1m",     TOOL_R="\033[2m", INFO="\033[2m",
-        ACCENT="\033[1m",   SEL="\033[1m",    WARN="\033[1m",
-        OK="\033[1m",       ERR="\033[1m",    DIM="\033[2m",
+        THINK_L="\033[1m",     THINK="\033[2m",      RESP="\033[0m",
+        TOOL="\033[1;4m",      TOOL_R="\033[2m",     INFO="\033[2m",
+        ACCENT="\033[1m",      SEL="\033[1m",        WARN="\033[1m",
+        OK="\033[1m",          ERR="\033[7m",        DIM="\033[2m",
     ),
 }
 C_RESET = "\033[0m"
@@ -1299,7 +1304,7 @@ def chat(preloaded_msgs=None):
                         msgs[-1]['content'] = m2.content or full_content
                         msgs[-1]['tool_calls'] = tools_called
 
-                        print(f"\n  {C('DIM')}── Executing tools ────────────────────{C_RESET}")
+                        print(f"\n  {C('TOOL')}── Executing tools ────────────────────{C_RESET}")
                         for t in tools_called:
                             f = funcs.get(t.function.name)
                             if f:
