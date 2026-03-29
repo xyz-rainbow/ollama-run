@@ -32,7 +32,7 @@ if errorlevel 1 (
 :: ── 3. Dependencias Python ────────────────────────────────────────────────────
 echo.
 echo   Instalando dependencias Python...
-pip install ollama duckduckgo-search psutil requests -q
+pip install -r requirements.txt -q
 if errorlevel 1 (
     echo   [!] Error instalando dependencias.
     pause & exit /b 1

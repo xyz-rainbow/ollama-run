@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="ollama-run",
-    version="4.8.0",
+    version="4.9.1",
     py_modules=["main"],
     install_requires=[
         "ollama",

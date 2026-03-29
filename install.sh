@@ -66,9 +66,9 @@ fi
 
 # ── 3. Dependencias Python ─────────────────────────────────────────────────────
 echo -e "  ${DIM}Instalando dependencias Python…${RESET}"
-pip3 install ollama duckduckgo-search psutil requests --break-system-packages -q 2>/dev/null \
-    || pip3 install ollama duckduckgo-search psutil requests --user -q 2>/dev/null \
-    || pip3 install ollama duckduckgo-search psutil requests -q
+pip3 install -r requirements.txt --break-system-packages -q 2>/dev/null \
+    || pip3 install -r requirements.txt --user -q 2>/dev/null \
+    || pip3 install -r requirements.txt -q
 
 # ── 4. Instalar ollama-run ─────────────────────────────────────────────────────
 echo -e "  ${DIM}Instalando ollama-run…${RESET}"
