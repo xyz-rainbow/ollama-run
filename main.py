@@ -157,6 +157,11 @@ try:
 except ImportError:
     pass
 
+# #xyz-rainbowtechnology
+LOGSEQ_PATH = os.path.expanduser("~/Documents/Logseq/pages")
+if os.path.exists("/media/cloud-xyz/X/[Graph]/pages"):
+    LOGSEQ_PATH = "/media/cloud-xyz/X/[Graph]/pages"
+
 client = Client()
 
 # ── COLORES POR TEMA ───────────────────────────────────────────────────────────
