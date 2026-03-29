@@ -466,53 +466,296 @@ class Animation:
         sys.stdout.flush()
 
     @staticmethod
-    def draw_frame(screen, width, height, padding=2):
-        v = "│"
-        tl, tr, bl, br = "╭", "╮", "╰", "╯"
-        h = "─"
+    def get_letter_x():
+        return [
+            "█       █",
+            "  █   █  ",
+            "    █    ",
+            "  █   █  ",
+            "█       █",
+        ]
+
+    @staticmethod
+    def get_letter_y():
+        return [
+            "█       █",
+            "  █   █  ",
+            "    █    ",
+            "    █    ",
+            "    █    ",
+        ]
+
+    @staticmethod
+    def get_letter_z():
+        return [
+            "█████████",
+            "      █  ",
+            "    █    ",
+            "  █      ",
+            "█████████",
+        ]
+
+    @staticmethod
+    def ease_out_expo(t):
+        return 1 if t == 1 else 1 - pow(2, -10 * t)
+
+    @staticmethod
+    def ease_in_expo(t):
+        return 0 if t == 0 else pow(2, 10 * t - 10)
+
+    @staticmethod
+    def draw_letter(screen, art, center_px, center_py, color, width, height, reset="\033[0m"):
+        letter_width = len(art[0])
+        letter_height = len(art)
+        start_x = int(center_px - (letter_width // 2))
+        start_y = int(center_py - (letter_height // 2))
+        for i, row in enumerate(art):
+            for j, char in enumerate(row):
+                if char != " ":
+                    sy = start_y + i
+                    sx = start_x + j
+                    if 0 <= sy < height and 0 <= sx < width:
+                        screen[sy][sx] = f"{color}{char}{reset}"
+
+    @staticmethod
+    def draw_frame(screen, width, height, padding=2, style="rounded"):
+        chars = {"rounded": ("\u256d", "\u256e", "\u2570", "\u256f", "\u2500", "\u2502", "\u2591", "\u2591")}
+        tl, tr, bl, br, h, v, _, _ = chars.get(style, chars["rounded"])
         pw = width - padding * 2 - 2
+
+        y = padding
         row = tl + h * pw + tr
         for x in range(padding, width - padding):
-            if 0 <= padding < height and 0 <= x < width:
-                screen[padding][x] = row[x - padding] if x - padding < len(row) else " "
+            if 0 <= y < height and 0 <= x < width:
+                screen[y][x] = row[x - padding] if x - padding < len(row) else " "
+
+        y = height - padding - 1
         row = bl + h * pw + br
         for x in range(padding, width - padding):
-            if 0 <= height - padding - 1 < height and 0 <= x < width:
-                screen[height - padding - 1][x] = row[x - padding] if x - padding < len(row) else " "
+            if 0 <= y < height and 0 <= x < width:
+                screen[y][x] = row[x - padding] if x - padding < len(row) else " "
+
         for y in range(padding + 1, height - padding - 1):
             if 0 <= y < height:
                 screen[y][padding] = v
                 screen[y][width - padding - 1] = v
 
     @classmethod
-    def play(cls):
+    def play_intro(cls):
+        import math, random, time
         cls.hide_cursor()
         cls.clear_screen()
-        width = min(shutil.get_terminal_size().columns, 100)
-        height = min(10, shutil.get_terminal_size().lines)
+
+        term_width = min(shutil.get_terminal_size().columns, 120)
+        term_height = shutil.get_terminal_size().lines
+        width = term_width
+        height = term_height - 2
+        if height <= 0: return
         center_x = width // 2
         center_y = height // 2
-        letters = [" X ", " ∆ ", " Z "]
-        frames = 30 # Slightly faster for better UX
+
+        C_X = "\033[1;96m"
+        C_Y = "\033[1;32m"
+        C_Z = "\033[1;35m"
+        C_FRAME = "\033[1;90m"
+        RESET = "\033[0m"
+
+        PARTICLE_COLORS = ["\033[1;96m", "\033[1;32m", "\033[1;35m", "\033[1;33m", "\033[1;97m", "\033[1;90m"]
+
+        lx = cls.get_letter_x()
+        ly = cls.get_letter_y()
+        lz = cls.get_letter_z()
+
+        particles = []
+        for _ in range(150):
+            particles.append({
+                "x": random.randint(1, width - 1),
+                "y": random.randint(1, height - 1),
+                "char": random.choice([".", "*", "°", "`", "+", "·"]),
+                "color": random.choice(PARTICLE_COLORS),
+                "vx": 0, "vy": 0,
+            })
+
+        frames = 100
         for frame in range(frames):
             out = "\033[H"
             screen = [[" " for _ in range(width)] for _ in range(height)]
             phase = frame / frames
-            if phase < 0.7:
-                letters_str = f" {letters[0]}{letters[1]}{letters[2]} "
-                start_x = int(center_x - len(letters_str) // 2)
-                for i, c in enumerate(letters_str):
-                    x = start_x + i
-                    if 0 <= x < width and 0 <= center_y < height:
-                        screen[center_y][x] = c
+
+            if phase < 0.4:
+                for p in particles:
+                    dx = center_x - p["x"]
+                    dy = center_y - p["y"]
+                    dist = max(1, math.sqrt(dx * dx + dy * dy))
+                    attraction = 120 / (dist + 5)
+                    p["vx"] += (dx / dist) * attraction * 0.1
+                    p["vy"] += (dy / dist) * attraction * 0.1
+                    p["vx"] *= 0.92
+                    p["vy"] *= 0.92
+                    p["x"] += p["vx"]
+                    p["y"] += p["vy"]
+                    px_int, py_int = int(p["x"]), int(p["y"])
+                    if 0 <= px_int < width and 0 <= py_int < height:
+                        screen[py_int][px_int] = f"{p['color']}{p['char']}{RESET}"
+
+                swirl_phase = phase / 0.4
+                radius = int(4 * swirl_phase)
+                for a in range(0, 360, 45):
+                    rad = math.radians(a + frame * 15)
+                    sx = int(center_x + radius * math.cos(rad))
+                    sy = int(center_y + radius * math.sin(rad) * 0.5)
+                    if 0 <= sy < height and 0 <= sx < width:
+                        screen[sy][sx] = f"{C_X if a % 90 == 0 else C_Y}@{RESET}"
+                if 0 <= center_y < height and 0 <= center_x < width:
+                    screen[center_y][center_x] = f"{C_Z}O{RESET}"
+
+            elif phase < 0.8:
+                emerge_phase = (phase - 0.4) / 0.4
+                eased = cls.ease_out_expo(emerge_phase)
+                offset = int(18 * eased)
+                cur_x = center_x - offset
+                cur_z = center_x + offset
+
+                cls.draw_letter(screen, lx, cur_x, center_y, C_X, width, height, RESET)
+                cls.draw_letter(screen, ly, center_x, center_y, C_Y, width, height, RESET)
+                cls.draw_letter(screen, lz, cur_z, center_y, C_Z, width, height, RESET)
+
+                for p in particles[:40]:
+                    p["x"] -= p["vx"] * 0.5
+                    p["y"] -= p["vy"] * 0.5
+                    px_int, py_int = int(p["x"]), int(p["y"])
+                    if 0 <= px_int < width and 0 <= py_int < height:
+                        screen[py_int][px_int] = f"{p['color']}{p['char']}{RESET}"
+
             else:
-                cls.draw_frame(screen, width, height)
+                cur_x = center_x - 18
+                cur_z = center_x + 18
+                cls.draw_letter(screen, lx, cur_x, center_y, C_X, width, height, RESET)
+                cls.draw_letter(screen, ly, center_x, center_y, C_Y, width, height, RESET)
+                cls.draw_letter(screen, lz, cur_z, center_y, C_Z, width, height, RESET)
+
+                frame_phase = (phase - 0.8) / 0.2
+                if frame_phase > 0.1:
+                    out_frame = [[" " for _ in range(width)] for _ in range(height)]
+                    cls.draw_frame(out_frame, width, height, padding=2, style="rounded")
+                    for y in range(height):
+                        for x in range(width):
+                            if out_frame[y][x] != " ":
+                                color = "\033[1;97m" if frame_phase < 0.4 else C_FRAME
+                                screen[y][x] = f"{color}{out_frame[y][x]}{RESET}"
+
             for row in screen:
                 out += "".join(row) + "\n"
+
             sys.stdout.write(out)
             sys.stdout.flush()
-            import time
-            time.sleep(0.03)
+            time.sleep(0.045)
+
+        cls.clear_screen()
+        cls.show_cursor()
+
+    @classmethod
+    def play_outro(cls):
+        import math, random, time
+        cls.hide_cursor()
+        cls.clear_screen()
+
+        term_width = min(shutil.get_terminal_size().columns, 120)
+        term_height = shutil.get_terminal_size().lines
+        width = term_width
+        height = term_height - 2
+        if height <= 0: return
+        center_x = width // 2
+        center_y = height // 2
+
+        C_X = "\033[1;96m"
+        C_Y = "\033[1;32m"
+        C_Z = "\033[1;35m"
+        C_FRAME = "\033[1;90m"
+        RESET = "\033[0m"
+
+        lx = cls.get_letter_x()
+        ly = cls.get_letter_y()
+        lz = cls.get_letter_z()
+
+        PARTICLE_COLORS = ["\033[1;96m", "\033[1;32m", "\033[1;35m", "\033[1;33m", "\033[1;97m", "\033[1;90m"]
+        particles = []
+        
+        frames = 70
+        for frame in range(frames):
+            out = "\033[H"
+            screen = [[" " for _ in range(width)] for _ in range(height)]
+            phase = frame / frames
+
+            if phase < 0.3:
+                cur_x = center_x - 18
+                cur_z = center_x + 18
+                cls.draw_letter(screen, lx, cur_x, center_y, C_X, width, height, RESET)
+                cls.draw_letter(screen, ly, center_x, center_y, C_Y, width, height, RESET)
+                cls.draw_letter(screen, lz, cur_z, center_y, C_Z, width, height, RESET)
+                
+                fade = 1.0 - (phase / 0.3)
+                out_frame = [[" " for _ in range(width)] for _ in range(height)]
+                cls.draw_frame(out_frame, width, height, padding=2, style="rounded")
+                for y in range(height):
+                    for x in range(width):
+                        if out_frame[y][x] != " ":
+                            if random.random() < fade:
+                                color = "\033[1;97m" if random.random() < 0.1 else C_FRAME
+                                screen[y][x] = f"{color}{out_frame[y][x]}{RESET}"
+
+            elif phase < 0.7:
+                collapse_phase = (phase - 0.3) / 0.4
+                eased = cls.ease_in_expo(collapse_phase)
+                
+                offset = int(18 * (1 - eased))
+                cur_x = center_x - offset
+                cur_z = center_x + offset
+                
+                cls.draw_letter(screen, lx, cur_x, center_y, C_X, width, height, RESET)
+                cls.draw_letter(screen, ly, center_x, center_y, C_Y, width, height, RESET)
+                cls.draw_letter(screen, lz, cur_z, center_y, C_Z, width, height, RESET)
+                
+                radius = int(4 * eased)
+                for a in range(0, 360, 45):
+                    rad = math.radians(a - frame * 15)
+                    sx = int(center_x + radius * math.cos(rad))
+                    sy = int(center_y + radius * math.sin(rad) * 0.5)
+                    if 0 <= sy < height and 0 <= sx < width:
+                        screen[sy][sx] = f"{C_X if a % 90 == 0 else C_Y}@{RESET}"
+                if 0 <= center_y < height and 0 <= center_x < width:
+                    screen[center_y][center_x] = f"{C_Z}O{RESET}"
+
+            else:
+                explode_phase = (phase - 0.7) / 0.3
+                if explode_phase < 0.2 and len(particles) < 150:
+                    for _ in range(30):
+                        px = center_x + random.randint(-2, 2)
+                        py = center_y + random.randint(-1, 1)
+                        angle = random.uniform(0, 2 * math.pi)
+                        speed = random.uniform(2.0, 5.0)
+                        particles.append({
+                            "x": px, "y": py,
+                            "color": random.choice(PARTICLE_COLORS),
+                            "vx": math.cos(angle) * speed,
+                            "vy": math.sin(angle) * speed * 0.5,
+                            "char": random.choice([".", "*", "°", "`", "+", "·"])
+                        })
+                        
+                for p in particles:
+                    p["x"] += p["vx"]
+                    p["y"] += p["vy"]
+                    px_int, py_int = int(p["x"]), int(p["y"])
+                    if 0 <= px_int < width and 0 <= py_int < height:
+                        screen[py_int][px_int] = f"{p['color']}{p['char']}{RESET}"
+
+            for row in screen:
+                out += "".join(row) + "\n"
+
+            sys.stdout.write(out)
+            sys.stdout.flush()
+            time.sleep(0.04)
+
         cls.clear_screen()
         cls.show_cursor()
 
@@ -1744,7 +1987,7 @@ def main():
     if len(sys.argv) >= 2 and sys.argv[1].lower() == 'search':
         search_models(); return
 
-    Animation.play()
+    Animation.play_intro()
 
     if not ensure_ollama_running():
         return
@@ -1761,7 +2004,7 @@ def main():
     try:
         chat()
     finally:
-        Animation.play()
+        Animation.play_outro()
         stop_ollama_if_we_started()
         try:
             import readline as _rl
