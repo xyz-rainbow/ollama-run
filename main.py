@@ -768,9 +768,12 @@ def clear_screen():
 
 def get_banner(version="v4.9.1"):
     # #xyz-rainbow #rainbow.xyz
+    line = f" [XYZ] OLLAMA-RUN {version}  © Rainbow Technology "
+    w = len(line)
     return (
-        f"\n  {C('ACCENT')}[XYZ]{C_RESET} \033[1;37mOLLAMA-RUN{C_RESET} {C('INFO')}{version}{C_RESET}"
-        f"  {C('DIM')}© Rainbow Technology{C_RESET}"
+        f"\n  {C('DIM')}┌{'─' * w}┐{C_RESET}\n"
+        f"  {C('DIM')}│{C_RESET} {C('ACCENT')}[XYZ]{C_RESET} \033[1;37mOLLAMA-RUN{C_RESET} {C('INFO')}{version}{C_RESET}  {C('DIM')}© Rainbow Technology │{C_RESET}\n"
+        f"  {C('DIM')}└{'─' * w}┘{C_RESET}"
     )
 
 def print_tool_msg(msg):
