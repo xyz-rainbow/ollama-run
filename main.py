@@ -1026,7 +1026,7 @@ def open_history():
 
             total = len(sessions) + len(extras)
             key = get_key()
-            if key == '\x1b': return None
+            if key in ('\x1b', '\x11'): return ('\x11' if key == '\x11' else None)
             elif key == '\x1b[A': idx = (idx - 1) % total
             elif key == '\x1b[B': idx = (idx + 1) % total
             elif key in ['\r', '\n', '\r\n']:
@@ -1099,7 +1099,8 @@ def interactive_menu(options, title, right_action=None, right_hint=None):
         if right_hint:
             print(f"\n  {C('INFO')}[→] {right_hint}{C_RESET}")
         key = get_key()
-        if   key == '\x1b': return None
+        if   key == '\x11': return '\x11'
+        elif key == '\x1b': return None
         elif key == '\x1b[A':  idx = (idx - 1) % len(options)
         elif key == '\x1b[B':  idx = (idx + 1) % len(options)
         elif key in ['\r','\n','\r\n']: return options[idx]
@@ -1159,7 +1160,8 @@ def toggle_list_menu(title, items, state_dict, default_state=False, extra_top=No
             print(f"  {C('DIM')}  ↓ {below} more below{C_RESET}")
 
         key = get_key()
-        if key == '\x1b': break
+        if key == '\x11': return '\x11'
+        elif key == '\x1b': break
         elif key == '\x1b[A': idx = (idx - 1) % len(all_options)
         elif key == '\x1b[B': idx = (idx + 1) % len(all_options)
         elif key == ' ':
@@ -1456,7 +1458,8 @@ def show_model_detail(model_info):
             print(f"  {C('DIM')}  ↓ {below} more below{C_RESET}")
 
         key = get_key()
-        if key == '\x1b': break
+        if key == '\x11': return # Global exit signal will bubble up
+        elif key == '\x1b': break
         elif key == '\x1b[A': idx = (idx - 1) % len(tags)
         elif key == '\x1b[B': idx = (idx + 1) % len(tags)
         elif key in ['\r','\n','\r\n']:
@@ -1502,7 +1505,8 @@ def search_models():
                 print(f"  {C('DIM')}  ↓ {below} more below{C_RESET}")
 
         key = get_key()
-        if key == '\x1b': break
+        if key == '\x11': return # Exit search
+        elif key == '\x1b': break
         elif key == '\x1b[A' and models: idx = (idx - 1) % len(models)
         elif key == '\x1b[B' and models: idx = (idx + 1) % len(models)
         elif key == '\x1b[C' and models:
@@ -1534,33 +1538,38 @@ def open_settings():
             "Back",
         ]
         opt = interactive_menu(opts, "SETTINGS")
+        if opt == '\x11': return '\x11'
         if not opt or "Back" in opt: break
         if "Model"    in opt:
             new = select_model()
+            if new == '\x11': return '\x11'
             if new: session.model = new; session.save_config()
         elif "Thinking" in opt:
             mode = interactive_menu(["OFF","ON","FORCE"], "THINKING MODE")
+            if mode == '\x11': return '\x11'
             if mode: session.thinking_mode = mode; session.save_config()
         elif "Level"   in opt:
             lv = interactive_menu(["Low","Medium","High"], "THINKING LEVEL")
+            if lv == '\x11': return '\x11'
             if lv: session.thinking_level = lv; session.save_config()
         elif "Theme"   in opt:
             th = interactive_menu(list(THEMES.keys()), "THEME")
+            if th == '\x11': return '\x11'
             if th: session.theme = th; session.save_config()
         elif opt == "Tools…":
-            open_tools()
+            if open_tools() == '\x11': return '\x11'
         elif opt == "Skills…":
-            open_skills()
+            if open_skills() == '\x11': return '\x11'
         elif opt == "History…":
-            open_history()
+            if open_history() == '\x11': return '\x11'
         elif "Pull"    in opt:
             clear_screen(); print(get_banner())
             name = input(f"\n  {C('INFO')}Model name:{C_RESET} ").strip()
             if name: pull_model(name)
         elif "Search" in opt:
-            search_models()
+            if search_models() == '\x11': return '\x11'
         elif "Chats"   in opt:
-            open_history_settings()
+            if open_history_settings() == '\x11': return '\x11'
 
 def open_history_settings():
     """Manage chats from Settings."""
@@ -1574,6 +1583,7 @@ def open_history_settings():
         opts = [f"{s['date']}  {s['model']}  {s['preview']}" for s in sessions_list]
         opts += ["── Delete all ──", "Back"]
         choice = interactive_menu(opts, "CHATS  [Enter=open/delete]")
+        if choice == '\x11': return '\x11'
         if not choice or "Back" in choice: break
         if "Delete all" in choice:
             shutil.rmtree(SESSIONS_DIR); os.makedirs(SESSIONS_DIR, exist_ok=True)
@@ -1583,6 +1593,7 @@ def open_history_settings():
             label = f"{s['date']}  {s['model']}  {s['preview']}"
             if choice == label:
                 action = interactive_menu(["View preview", "Delete this chat", "Back"], f"CHAT: {s['date']}")
+                if action == '\x11': return '\x11'
                 if action == "Delete this chat":
                     os.remove(s['path'])
                 break
@@ -1806,20 +1817,26 @@ def chat(preloaded_msgs=None):
 
                 if cmd in ('/exit', '/e'): break
                 elif cmd in ('/settings', '/st'):
-                    open_settings(); show_thinking = session.thinking_mode != "OFF"
+                    res = open_settings(); show_thinking = session.thinking_mode != "OFF"
+                    if res == '\x11': break
                     clear_screen(); print(get_banner()); print_status(); continue
                 elif cmd in ('/tools', '/t'):
-                    open_tools()
+                    res = open_tools()
+                    if res == '\x11': break
                     clear_screen(); print(get_banner()); print_status(); continue
                 elif cmd in ('/skills', '/sk'):
-                    open_skills()
+                    res = open_skills()
+                    if res == '\x11': break
                     clear_screen(); print(get_banner()); print_status(); continue
                 elif cmd in ('/model', '/m'):
                     new = select_model()
+                    if new == '\x11': break
                     if new: session.model = new; session.save_config()
                     clear_screen(); print(get_banner()); print_status(); continue
                 elif cmd in ('/search', '/sr'):
-                    search_models(); clear_screen(); print(get_banner()); print_status(); continue
+                    res = search_models()
+                    if res == '\x11': break
+                    clear_screen(); print(get_banner()); print_status(); continue
                 elif cmd in ('/pull', '/p'):
                     name = inp[len(cmd):].strip()
                     if name: pull_model(name)
@@ -1827,6 +1844,7 @@ def chat(preloaded_msgs=None):
                     continue
                 elif cmd in ('/history', '/h'):
                     loaded = open_history()
+                    if loaded == '\x11': break
                     if loaded:
                         msgs = loaded
                         print(f"\n  {C('OK')}✓ Conversation loaded ({len([m for m in msgs if m['role']=='user'])} messages){C_RESET}\n")
