@@ -1437,11 +1437,23 @@ def show_model_detail(model_info):
         print(f"  {C('RESP')}Parameters:{C_RESET}  {params}")
         print(f"  {C('RESP')}Updated:{C_RESET} {upd}")
         print(f"\n  {C('INFO')}Available variants:{C_RESET}  {C('DIM')}[↑↓] navigate  [Enter] download  [ESC] back{C_RESET}\n")
-        for i, tag in enumerate(tags):
-            if i == idx:
+        
+        offset, page = _viewport(idx, len(tags), reserved_lines=14)
+        visible = tags[offset:offset + page]
+        
+        if offset > 0:
+            print(f"  {C('DIM')}  ↑ {offset} more above{C_RESET}")
+            
+        for i, tag in enumerate(visible):
+            gi = i + offset
+            if gi == idx:
                 print(f"  {C('SEL')}> {tag}{C_RESET}")
             else:
                 print(f"    {C('INFO')}{tag}{C_RESET}")
+                
+        below = len(tags) - offset - page
+        if below > 0:
+            print(f"  {C('DIM')}  ↓ {below} more below{C_RESET}")
 
         key = get_key()
         if key == '\x1b': break
@@ -1469,14 +1481,25 @@ def search_models():
         if not models:
             print(f"  {C('WARN')}No models found.{C_RESET}")
         else:
-            for i, m in enumerate(models):
+            offset, page = _viewport(idx, len(models), reserved_lines=10)
+            visible = models[offset:offset + page]
+            
+            if offset > 0:
+                print(f"  {C('DIM')}  ↑ {offset} more above{C_RESET}")
+                
+            for i, m in enumerate(visible):
+                gi = i + offset
                 name = m.get('name', str(m)) if isinstance(m, dict) else str(m)
                 desc = (m.get('description', '') if isinstance(m, dict) else '')[:60]
                 upd  = m.get('updated', '') if isinstance(m, dict) else ''
-                if i == idx:
+                if gi == idx:
                     print(f"  {C('SEL')}> {name}{C_RESET}  {C('DIM')}{desc}{C_RESET}  {C('INFO')}{upd}{C_RESET}")
                 else:
                     print(f"    {C('INFO')}{name}{C_RESET}  {C('DIM')}{desc}{C_RESET}")
+                    
+            below = len(models) - offset - page
+            if below > 0:
+                print(f"  {C('DIM')}  ↓ {below} more below{C_RESET}")
 
         key = get_key()
         if key == '\x1b': break
