@@ -4,6 +4,15 @@ An advanced Ollama orchestrator with tools, skills, persistent history, visual t
 
 > Un orquestador avanzado para Ollama con herramientas, skills, historial persistente, temas visuales y visualización del pensamiento en tiempo real.
 
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.10+-00f0ff?style=flat-square&logo=python&logoColor=white" alt="python">
+  <img src="https://img.shields.io/badge/Ollama-Local%20AI-c8ff00?style=flat-square" alt="ollama">
+  <img src="https://img.shields.io/badge/CLI-manager-ff2bd6?style=flat-square" alt="cli">
+  <img src="https://img.shields.io/badge/version-4.9.1-00f0ff?style=flat-square" alt="version">
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-00f0ff?style=flat-square" alt="platform">
+  <img src="https://img.shields.io/badge/local--ai-tools%20%26%20skills-ff2bd6?style=flat-square" alt="local-ai">
+</p>
+
 ![Rainbow Ollama-Run](banner.svg)
 
 ---
