@@ -5,21 +5,21 @@
 # #i-love-you #You're not supposed to see this!
 # Personal use only. Redistribution, forks and commercial use prohibited.
 
-import json
-import subprocess
-import os
-import sys
-import psutil
-import re
-import requests
-import glob
-import shutil
 import base64
-import hashlib
-import mimetypes
+import glob
+import json
 import locale
+import os
+import re
+import shutil
+import subprocess
+import sys
 from datetime import datetime
+
+import psutil
+import requests
 from ollama import Client
+
 try:
     from ddgs import DDGS
 except ImportError:
@@ -570,7 +570,9 @@ class Animation:
 
     @classmethod
     def play_intro(cls):
-        import math, random, time
+        import math
+        import random
+        import time
         cls.hide_cursor()
         cls.clear_screen()
 
@@ -684,7 +686,9 @@ class Animation:
 
     @classmethod
     def play_outro(cls):
-        import math, random, time
+        import math
+        import random
+        import time
         cls.hide_cursor()
         cls.clear_screen()
 
@@ -959,7 +963,7 @@ funcs = {
 def _serialize_msg(m):
     """Convert a message dict to a JSON-serializable form (ToolCall objects → dicts)."""
     out = {k: v for k, v in m.items() if k != 'tool_calls'}
-    if 'tool_calls' in m and m['tool_calls']:
+    if m.get('tool_calls'):
         out['tool_calls'] = [
             {'name': t.function.name, 'arguments': t.function.arguments}
             if hasattr(t, 'function') else t
@@ -1059,7 +1063,7 @@ def get_key():
             mapping = {b'H': 'A', b'P': 'B', b'M': 'C', b'K': 'D'}
             return f"\x1b[{mapping.get(ch, ' ')}" 
         try: return ch.decode('utf-8')
-        except: return ""
+        except Exception: return ""
     else:
         import select
         fd = sys.stdin.fileno()
@@ -1348,7 +1352,7 @@ def open_skills():
                         if os.path.exists(SKILLS_CATALOG):
                             try:
                                 with open(SKILLS_CATALOG) as _f: existing = json.load(_f)
-                            except: pass
+                            except Exception: pass
                         names = {s['name'] for s in existing}
                         if selected['name'] not in names:
                             existing.append(selected)
@@ -1790,7 +1794,7 @@ def print_status():
     model_display = session.model if session.model else f"{C('ERR')}No model selected{C_RESET}"
     vision_str = f"  {C('OK')}👁 {T('vision')}{C_RESET}" if is_vision_model(session.model) else ""
     print(f"  {C('INFO')}{model_display}  {T('thinking')}:{session.thinking_mode}  {T('tools')}:{active_t}/{len(session.tools_enabled)}{skills_str}  {T('theme')}:{session.theme}{vision_str}{C_RESET}")
-    img_hint = f" /img <path|url>" if is_vision_model(session.model) else ""
+    img_hint = " /img <path|url>" if is_vision_model(session.model) else ""
     print(f"  {C('DIM')}{T('commands')}: /exit /settings /model /tools /skills /search /pull /history{img_hint}{C_RESET}\n")
 
 # ── CHAT ───────────────────────────────────────────────────────────────────────
@@ -2157,6 +2161,12 @@ def stop_ollama_if_we_started():
 # ── ENTRY POINT ────────────────────────────────────────────────────────────────
 def main():
     # #rainbow.xyz
+    if len(sys.argv) >= 2 and sys.argv[1] in ("--version", "-V"):
+        print(_BUILD_TAG)
+        return
+    if len(sys.argv) >= 2 and sys.argv[1] in ("--help", "-h"):
+        print("usage: ollama-run [search|pull <model>]")
+        return
     if len(sys.argv) >= 3 and sys.argv[1].lower() == 'pull':
         if not ensure_ollama_running(): return
         pull_model(sys.argv[2]); return
