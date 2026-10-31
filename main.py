@@ -16,6 +16,7 @@ import subprocess
 import sys
 from datetime import datetime
 
+import httpx
 import psutil
 import requests
 from ollama import Client
@@ -188,7 +189,7 @@ LOGSEQ_PATH = os.path.expanduser("~/Documents/Logseq/pages")
 if os.path.exists("/media/cloud-xyz/X/[Graph]/pages"):
     LOGSEQ_PATH = "/media/cloud-xyz/X/[Graph]/pages"
 
-client = Client()
+client = Client(timeout=120.0)
 
 # ── COLORES POR TEMA ───────────────────────────────────────────────────────────
 THEMES = {
@@ -253,7 +254,8 @@ class Session:
     def _load_config(self):
         if os.path.exists(CONFIG_FILE):
             try:
-                d = json.loads(open(CONFIG_FILE).read())
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                    d = json.load(f)
                 self.model          = d.get('model', '')
                 self.thinking_mode  = d.get('thinking_mode', 'ON')
                 self.thinking_level = d.get('thinking_level', 'Medium')
@@ -262,10 +264,17 @@ class Session:
                 if isinstance(te, dict): self.tools_enabled.update(te)
                 se = d.get('skills_enabled')
                 if isinstance(se, dict): self.skills_enabled.update(se)
-            except Exception: pass
+            except (json.JSONDecodeError, OSError):
+                pass
+            except Exception:
+                pass
 
     def save_config(self):
-        with open(CONFIG_FILE, 'w') as f:
+        try:
+            os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+        except Exception:
+            pass
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump({
                 'model': self.model,
                 'thinking_mode': self.thinking_mode,
@@ -964,11 +973,14 @@ def _serialize_msg(m):
     """Convert a message dict to a JSON-serializable form (ToolCall objects → dicts)."""
     out = {k: v for k, v in m.items() if k != 'tool_calls'}
     if m.get('tool_calls'):
-        out['tool_calls'] = [
-            {'name': t.function.name, 'arguments': t.function.arguments}
-            if hasattr(t, 'function') else t
-            for t in m['tool_calls']
-        ]
+        out['tool_calls'] = []
+        for t in m['tool_calls']:
+            if hasattr(t, 'function'):
+                out['tool_calls'].append({'function': {'name': t.function.name, 'arguments': t.function.arguments}})
+            elif isinstance(t, dict) and 'function' in t:
+                out['tool_calls'].append(t)
+            else:
+                out['tool_calls'].append({'function': t} if isinstance(t, dict) else t)
     return out
 
 def save_session(msgs, session_id=None):
@@ -994,7 +1006,8 @@ def list_sessions():
     sessions = []
     for f in files:
         try:
-            d = json.loads(open(f).read())
+            with open(f, 'r', encoding='utf-8') as file:
+                d = json.load(file)
             # Primer mensaje de usuario para el título
             first_user = next((m['content'][:60] for m in d.get('messages', []) if m['role'] == 'user'), "(vacío)")
             sessions.append({
@@ -1005,7 +1018,10 @@ def list_sessions():
                 'path': f,
                 'messages': d.get('messages', []),
             })
-        except Exception: pass
+        except (json.JSONDecodeError, OSError):
+            pass
+        except Exception:
+            pass
     return sessions
 
 _HIST_MARKER = "cmFpbmJvd3RlY2hub2xvZ3kueHl6"  # history module tag
@@ -1766,8 +1782,13 @@ def stream_response(response_iter, show_thinking=True):
             response_shown = True
 
     for chunk in response_iter:
-        thinking_piece = chunk['message'].thinking
-        content_piece  = chunk['message'].content
+        msg = chunk.get('message', {}) if isinstance(chunk, dict) else getattr(chunk, 'message', {})
+        if hasattr(msg, 'model_dump'):
+            thinking_piece = getattr(msg, 'thinking', None)
+            content_piece  = getattr(msg, 'content', "")
+        else:
+            thinking_piece = msg.get('thinking') if isinstance(msg, dict) else getattr(msg, 'thinking', None)
+            content_piece  = msg.get('content', "") if isinstance(msg, dict) else getattr(msg, 'content', "")
 
         if thinking_piece and show_thinking:
             _ensure_thinking_header()
@@ -2027,6 +2048,10 @@ def chat(preloaded_msgs=None):
                 )
                 full_content = stream_response(response, show_thinking=show_thinking)
 
+            except httpx.ConnectError:
+                msgs.pop()
+                print(f"\n  {C('ERR')}✗ Cannot connect to Ollama. Is it running?{C_RESET}")
+                continue
             except Exception as e:
                 msgs.pop()
                 print(f"\n  {C('ERR')}✗ Error communicating with model: {e}{C_RESET}")
@@ -2104,6 +2129,8 @@ def ensure_ollama_running():
     try:
         client.list()
         return True
+    except httpx.ConnectError:
+        pass
     except Exception:
         pass
 
