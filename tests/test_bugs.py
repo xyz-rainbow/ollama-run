@@ -8,6 +8,7 @@ import main
 
 
 def test_list_sessions_corrupt_file():
+    old_dir = main.SESSIONS_DIR
     with tempfile.TemporaryDirectory() as tmpdir:
         main.SESSIONS_DIR = tmpdir
         with open(os.path.join(tmpdir, "good.json"), "w") as f:
@@ -16,6 +17,8 @@ def test_list_sessions_corrupt_file():
             f.write("not json")
 
         sessions = main.list_sessions()
+        main.SESSIONS_DIR = old_dir
+
         assert len(sessions) == 1
         assert sessions[0]["id"] == "good"
 
@@ -69,3 +72,36 @@ def test_serialize_msg():
     m3 = {'role': 'assistant', 'content': 'ok', 'tool_calls': [{'name': 'web_search', 'arguments': {'query': 'hi'}}]}
     s3 = main._serialize_msg(m3)
     assert s3['tool_calls'][0]['function']['name'] == 'web_search'
+
+def test_get_system_lang_deprecation(monkeypatch):
+    import warnings
+    import main
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        lang = main.get_system_lang()
+
+    for warning in w:
+        assert "getdefaultlocale" not in str(warning.message)
+
+def test_get_terminal_size_os_error(monkeypatch):
+    import os
+    def mock_get_terminal_size():
+        raise OSError("Inappropriate ioctl for device")
+    monkeypatch.setattr(os, "get_terminal_size", mock_get_terminal_size)
+
+    offset, page = main._viewport(0, 10)
+    assert page == 17 # 24 - 7
+
+def test_list_sessions_none_content():
+    old_dir = main.SESSIONS_DIR
+    with tempfile.TemporaryDirectory() as tmpdir:
+        main.SESSIONS_DIR = tmpdir
+        with open(os.path.join(tmpdir, "bad.json"), "w") as f:
+            json.dump({"messages": [{"role": "user", "content": None}]}, f)
+
+        sessions = main.list_sessions()
+        main.SESSIONS_DIR = old_dir
+
+        assert len(sessions) == 1
+        assert sessions[0]["preview"] == "(vacío)"
