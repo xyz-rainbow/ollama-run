@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+import warnings
 
 import ollama
 
@@ -74,9 +75,6 @@ def test_serialize_msg():
     assert s3['tool_calls'][0]['function']['name'] == 'web_search'
 
 def test_get_system_lang_deprecation(monkeypatch):
-    import warnings
-    import main
-
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         lang = main.get_system_lang()
@@ -85,7 +83,6 @@ def test_get_system_lang_deprecation(monkeypatch):
         assert "getdefaultlocale" not in str(warning.message)
 
 def test_get_terminal_size_os_error(monkeypatch):
-    import os
     def mock_get_terminal_size():
         raise OSError("Inappropriate ioctl for device")
     monkeypatch.setattr(os, "get_terminal_size", mock_get_terminal_size)
