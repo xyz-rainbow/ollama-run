@@ -77,7 +77,7 @@ def test_serialize_msg():
 def test_get_system_lang_deprecation(monkeypatch):
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        lang = main.get_system_lang()
+        main.get_system_lang()
 
     for warning in w:
         assert "getdefaultlocale" not in str(warning.message)
