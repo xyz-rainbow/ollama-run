@@ -104,7 +104,7 @@ STRINGS = {
 def get_system_lang():
     """Get system language, fallback to English."""
     try:
-        lang = locale.getdefaultlocale()[0]
+        lang = locale.getlocale()[0] or "en"
         if lang and lang.startswith('es'):
             return "es"
     except Exception:
@@ -1009,7 +1009,8 @@ def list_sessions():
             with open(f, 'r', encoding='utf-8') as file:
                 d = json.load(file)
             # Primer mensaje de usuario para el título
-            first_user = next((m['content'][:60] for m in d.get('messages', []) if m['role'] == 'user'), "(vacío)")
+            first_user = next((str(m.get('content') or '')[:60] for m in d.get('messages', []) if m.get('role') == 'user'), "(vacío)")
+            if not first_user: first_user = "(vacío)"
             sessions.append({
                 'id': d.get('id', os.path.basename(f)),
                 'date': d.get('date', '')[:16].replace('T', ' '),
@@ -1106,7 +1107,10 @@ def get_key():
 
 def _viewport(idx, total, reserved_lines=7):
     """Return (scroll_offset, page_size) so idx is always visible."""
-    rows = os.get_terminal_size().lines if hasattr(os, 'get_terminal_size') else 24
+    try:
+        rows = os.get_terminal_size().lines if hasattr(os, 'get_terminal_size') else 24
+    except Exception:
+        rows = 24
     page = max(3, rows - reserved_lines)
     offset = max(0, min(idx - page // 2, total - page))
     return offset, page
