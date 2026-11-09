@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import tempfile
 import warnings
 
@@ -103,7 +104,8 @@ def test_list_sessions_none_content():
         assert len(sessions) == 1
         assert sessions[0]["preview"] == "(vacío)"
 
-import shutil
+
+
 def test_ensure_ollama_running_no_ollama_eof(monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda x: None)
 
@@ -118,10 +120,3 @@ def test_ensure_ollama_running_no_ollama_eof(monkeypatch):
     monkeypatch.setattr("builtins.input", mock_input)
 
     assert main.ensure_ollama_running() is False
-
-def test_duckduckgo_search_import_error(monkeypatch):
-    import sys
-
-    # We want to mock an ImportError for 'ddgs' to trigger the fallback to 'duckduckgo_search'
-    # But wait, it already imports correctly or raises error based on the environment.
-    pass
