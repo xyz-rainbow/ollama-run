@@ -2144,7 +2144,10 @@ def ensure_ollama_running():
         print(f"\n  {C('ERR')}✗ Ollama is not installed.{C_RESET}")
         print(f"  {C('INFO')}{_get_ollama_install_hint()}{C_RESET}")
         print(f"  {C('DIM')}Or run the installer:{C_RESET}  ./install.sh\n")
-        input(f"  {C('DIM')}[Enter to exit]{C_RESET}")
+        try:
+            input(f"  {C('DIM')}[Enter to exit]{C_RESET}")
+        except EOFError:
+            pass
         return False
 
     # 3. Arrancarlo en segundo plano
