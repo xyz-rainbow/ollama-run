@@ -9,6 +9,7 @@ setup(
         "psutil",
         "duckduckgo-search",
         "requests",
+        "httpx",
     ],
     entry_points={
         "console_scripts": [
