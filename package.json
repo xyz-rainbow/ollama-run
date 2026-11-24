@@ -1,5 +1,6 @@
 {
   "name": "ollama-run",
+  "private": true,
   "version": "4.9.1",
   "description": "Advanced Ollama orchestrator with tools and skills",
   "repository": {
@@ -19,5 +20,5 @@
     "terminal"
   ],
   "author": "Rainbow Technology",
-  "license": "UNLICENSED"
+  "license": "SEE LICENSE IN LICENSE"
 }
