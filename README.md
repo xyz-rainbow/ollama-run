@@ -11,6 +11,7 @@ An advanced Ollama orchestrator with tools, skills, persistent history, visual t
   <img src="https://img.shields.io/badge/version-4.9.1-00f0ff?style=flat-square" alt="version">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-00f0ff?style=flat-square" alt="platform">
   <img src="https://img.shields.io/badge/local--ai-tools%20%26%20skills-ff2bd6?style=flat-square" alt="local-ai">
+  <a href="LICENSE"><img alt="License: Proprietary" src="https://img.shields.io/badge/license-Proprietary-red?style=flat-square"></a>
 </p>
 
 ![Rainbow Ollama-Run](banner.svg)
