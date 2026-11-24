@@ -167,28 +167,15 @@ Los datos se guardan según las convenciones del sistema operativo:
 
 ---
 
-## License / Licencia
+## License
 
-**© Rainbow Technology — Personal Use Only / Solo Uso Personal**
+Proprietary — all rights reserved. Copyright (c) 2026 Rainbow Technology (xyz-rainbow).
 
-This software is licensed for **personal, non-commercial use only**.
+The source may be viewed and evaluated in this repository. Copying, redistribution, sublicensing, published forks, derivative works, and any commercial or production use are prohibited without prior written permission. Issues and pull requests are welcome. A GitHub fork is allowed only to prepare pull requests to this repository.
 
-- You may use, run, and modify this software for personal purposes.
-- Pull requests and contributions are welcome.
-- **You may NOT** sell, sublicense, or distribute this software or any derivative work.
-- **Forks are not permitted** without explicit written authorization from Rainbow Technology.
-- Any unauthorized modification, redistribution, or commercial use will be reported and pursued legally.
+See [LICENSE](LICENSE) for the full terms, including the contribution assignment, and [CONTRIBUTING.md](CONTRIBUTING.md) if you want to send a change.
+Propietaria — todos los derechos reservados. Copyright (c) 2026 Rainbow Technology (xyz-rainbow).
 
----
+El código se puede ver y evaluar en este repositorio. Queda prohibido copiarlo, redistribuirlo, sublicenciarlo, publicar forks o trabajos derivados, y cualquier uso comercial o en producción, salvo permiso escrito. Se admiten issues y pull requests. El fork en GitHub solo está permitido para preparar pull requests hacia este repositorio.
 
-Este software está licenciado **exclusivamente para uso personal y no comercial**.
-
-- Puedes usar, ejecutar y modificar este software para fines personales.
-- Los pull requests y contribuciones son bienvenidos.
-- **No está permitido** vender, sublicenciar ni distribuir este software ni ningún trabajo derivado.
-- **No se permiten forks** sin autorización escrita explícita de Rainbow Technology.
-- Cualquier modificación, redistribución o uso comercial no autorizado será denunciado y perseguido legalmente.
-
----
-
-#xyz-rainbow | #xyz-rainbowtechnology | #rainbow.xyz
+Consulta [LICENSE](LICENSE) para el texto completo, incluida la cesión de contribuciones, y [CONTRIBUTING.es.md](CONTRIBUTING.es.md) si quieres enviar un cambio.
